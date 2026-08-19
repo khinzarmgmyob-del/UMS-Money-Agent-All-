@@ -14,15 +14,21 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
 }) => {
   const [copied, setCopied] = useState(false);
 
+  const isCashOut = transaction.type === 'ထုတ်';
+  const isDeducted = transaction.commissionMode === 'deduct';
+  const netCash = transaction.netPayout !== undefined
+    ? transaction.netPayout
+    : (isCashOut && isDeducted ? (transaction.amount - transaction.commission) : transaction.amount);
+
   const receiptText = `
 === Money Agent POS Voucher ===
 ပြေစာအမှတ်: #${transaction.id}
 နေ့စွဲ / အချိန်: ${transaction.date} ${transaction.time || ''}
 ဖောက်သည်အမည်: ${transaction.customerName}
 အမျိုးအစား: ${transaction.type === 'သွင်း' ? 'ငွေသွင်း (Cash In)' : 'ငွေထုတ် (Cash Out)'}
-ငွေပမာဏ: ${transaction.amount.toLocaleString()} Ks
-ကော်မရှင်ခ: ${transaction.commission.toLocaleString()} Ks
-ဖုန်းနံပါတ်: ${transaction.phone}
+မူလငွေပမာဏ: ${transaction.amount.toLocaleString()} Ks
+ကော်မရှင်ခ: ${transaction.commission.toLocaleString()} Ks ${isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
+${isCashOut ? `ဖောက်သည်သို့ အမှန်ပေးငွေ: ${netCash.toLocaleString()} Ks\n` : ''}ဖုန်းနံပါတ်: ${transaction.phone}
 Wallet/Account: ${transaction.walletName}
 ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}================================
 အဆင်ပြေစွာ အသုံးပြုနိုင်ပါစေ။ ကျေးဇူးတင်ပါသည်။
@@ -97,9 +103,18 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
               <span className="text-slate-950">{formatKs(transaction.amount)}</span>
             </div>
             <div className="flex justify-between text-xs py-0.5 text-emerald-700">
-              <span>ဝန်ဆောင်ခ (ကော်မရှင်):</span>
+              <span>
+                ဝန်ဆောင်ခ (ကော်မရှင်):{' '}
+                {isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
+              </span>
               <span>+{formatKs(transaction.commission)}</span>
             </div>
+            {isCashOut && (
+              <div className="flex justify-between text-sm py-1.5 mt-1 border-t border-dashed border-slate-200 font-bold text-rose-700 bg-rose-50/50 px-2 rounded">
+                <span>ဖောက်သည်သို့ အမှန်ပေးငွေ:</span>
+                <span>{formatKs(netCash)}</span>
+              </div>
+            )}
           </div>
 
           {transaction.note && (

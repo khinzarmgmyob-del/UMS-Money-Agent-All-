@@ -1,5 +1,6 @@
 export type TransactionType = 'သွင်း' | 'ထုတ်';
 export type AccountCategory = 'Cash' | 'Wallet';
+export type CommissionMode = 'deduct' | 'separate';
 
 export interface Transaction {
   id: number;
@@ -9,6 +10,8 @@ export interface Transaction {
   type: TransactionType;
   amount: number;
   commission: number;
+  commissionMode?: CommissionMode; // 'deduct' (မူလငွေမှ နုတ်ယူ) | 'separate' (သက်သက်ပေး)
+  netPayout?: number; // ဖောက်သည်သို့ လက်ငင်းပေးအပ်ငွေ
   phone: string;
   walletName: string;
   accountType: AccountCategory;

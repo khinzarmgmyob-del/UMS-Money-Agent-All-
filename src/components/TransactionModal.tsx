@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, ArrowDownRight, ArrowUpRight, Calculator, Check, Wallet, Banknote } from 'lucide-react';
-import { Transaction, TransactionType, WalletItem } from '../types';
+import { X, ArrowDownRight, ArrowUpRight, Check, Coins, Percent, DollarSign } from 'lucide-react';
+import { Transaction, TransactionType, WalletItem, CommissionMode } from '../types';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs } from '../utils/formatters';
 
 interface TransactionModalProps {
@@ -24,6 +24,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [walletName, setWalletName] = useState<string>(wallets[0]?.name || 'KPay');
   const [amount, setAmount] = useState<string>('');
   const [commission, setCommission] = useState<string>('3000');
+  const [commissionMode, setCommissionMode] = useState<CommissionMode>('deduct'); // Default 'deduct' for cash out
   const [date, setDate] = useState<string>(getTodayFormatted());
   const [time, setTime] = useState<string>(getCurrentTimeFormatted());
   const [note, setNote] = useState<string>('');
@@ -35,6 +36,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const isCashOut = type === 'ထုတ်';
   const selectedWallet = wallets.find((w) => w.name === walletName);
   const isCashAccount = walletName === 'Main Cash Box';
+
+  // For Cash Out: Calculate the actual Cash given to customer
+  // If Deduct: Customer gets (amount - commission)
+  // If Separate: Customer gets (amount), and customer gives (commission) separately in cash
+  const netCashPayoutToCustomer = isCashOut
+    ? commissionMode === 'deduct'
+      ? Math.max(0, numAmount - numCommission)
+      : numAmount
+    : numAmount;
 
   // Amount preset helper
   const addAmount = (addVal: number) => {
@@ -63,6 +73,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       return;
     }
 
+    if (isCashOut && commissionMode === 'deduct' && numAmount < numCommission) {
+      alert('ကော်မရှင်ခ သည် မူလငွေပမာဏထက် မများနိုင်ပါ။');
+      return;
+    }
+
     const newTx: Omit<Transaction, 'id'> = {
       date,
       time,
@@ -70,6 +85,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       type,
       amount: numAmount,
       commission: numCommission,
+      commissionMode: isCashOut ? commissionMode : undefined,
+      netPayout: isCashOut ? netCashPayoutToCustomer : undefined,
       phone: phone.trim() || '-',
       walletName: walletName,
       accountType: isCashAccount ? 'Cash' : 'Wallet',
@@ -168,7 +185,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           {/* Wallet / Account Selection */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-              <span>အသုံးပြုမည့် Wallet / ငွေစာရင်း</span>
+              <span>{isCashOut ? 'ဖောက်သည်ထံမှ လက်ခံမည့် Wallet / ငွေစာရင်း' : 'ဖောက်သည်သို့ လွှဲပေးမည့် Wallet / ငွေစာရင်း'}</span>
               {selectedWallet && (
                 <span className="text-indigo-600 font-semibold">
                   လက်ကျန်: {formatKs(selectedWallet.balance)}
@@ -315,6 +332,98 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
 
+          {/* COMMISSION PAYMENT MODE SELECTION (FOR CASH OUT) */}
+          {isCashOut && (
+            <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2.5">
+              <label className="block text-xs font-bold text-amber-900">
+                ⚙️ ကော်မရှင်ခ ရှင်းယူမည့် ပုံစံ ရွေးချယ်ရန်:
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {/* Option 1: Deduct from Amount (မူလငွေမှ နုတ်ပေးမည်) */}
+                <button
+                  type="button"
+                  onClick={() => setCommissionMode('deduct')}
+                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                    commissionMode === 'deduct'
+                      ? 'bg-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs'
+                      : 'bg-amber-100/40 border-amber-200 hover:bg-amber-100/70 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="radio"
+                      name="commissionMode"
+                      checked={commissionMode === 'deduct'}
+                      onChange={() => setCommissionMode('deduct')}
+                      className="w-4 h-4 text-amber-600"
+                    />
+                    <span className="text-xs font-bold text-amber-950">
+                      မူလငွေမှ နုတ်ပေးမည်
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-amber-800 pl-6">
+                    မူလငွေထဲမှ ကော်မရှင် နုတ်ပြီး ကျန်ငွေကိုသာ ဖောက်သည်သို့ ပေးအပ်မည်
+                  </span>
+                </button>
+
+                {/* Option 2: Pay Separately (သက်သက် ပေးမည်) */}
+                <button
+                  type="button"
+                  onClick={() => setCommissionMode('separate')}
+                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                    commissionMode === 'separate'
+                      ? 'bg-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs'
+                      : 'bg-amber-100/40 border-amber-200 hover:bg-amber-100/70 text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <input
+                      type="radio"
+                      name="commissionMode"
+                      checked={commissionMode === 'separate'}
+                      onChange={() => setCommissionMode('separate')}
+                      className="w-4 h-4 text-amber-600"
+                    />
+                    <span className="text-xs font-bold text-amber-950">
+                      သက်သက် ပေးမည်
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-amber-800 pl-6">
+                    ဖောက်သည်သည် မူလငွေအပြည့်ရယူပြီး ကော်မရှင်ခကို သီးသန့်ပေးမည်
+                  </span>
+                </button>
+              </div>
+
+              {/* Dynamic Auto-Calculated Payout Box */}
+              {numAmount > 0 && (
+                <div className="mt-2 p-3 bg-white border border-amber-300 rounded-xl space-y-1.5">
+                  <div className="flex justify-between text-xs text-slate-600">
+                    <span>မူလ လွှဲဝင်ငွေ (Wallet Amount):</span>
+                    <span className="font-semibold">{formatKs(numAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-amber-700">
+                    <span>
+                      ကော်မရှင်ခ (Commission):{' '}
+                      {commissionMode === 'deduct' ? '(နုတ်ယူမည်)' : '(သီးသန့်ပေး)'}
+                    </span>
+                    <span className="font-semibold">
+                      {commissionMode === 'deduct' ? `- ${formatKs(numCommission)}` : `+ ${formatKs(numCommission)}`}
+                    </span>
+                  </div>
+                  <div className="pt-1.5 border-t border-dashed border-amber-200 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-900">
+                      👉 ဖောက်သည်သို့ လက်ငင်းပေးရမည့်ငွေ:
+                    </span>
+                    <span className="text-base font-black text-rose-600">
+                      {formatKs(netCashPayoutToCustomer)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Date & Time */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -380,7 +489,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                   <span className="font-bold text-indigo-950">
                     {formatKs(
                       isCashOut
-                        ? cashBalance - numAmount + numCommission
+                        ? cashBalance - netCashPayoutToCustomer + (commissionMode === 'separate' ? numCommission : 0)
                         : cashBalance + numAmount + numCommission
                     )}
                   </span>

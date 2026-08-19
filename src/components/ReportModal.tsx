@@ -17,6 +17,16 @@ interface ReportModalProps {
   onViewReceipt?: (transaction: Transaction) => void;
 }
 
+// Helper to get actual cash amount handed out/in
+export const getActualCashAmount = (item: Transaction): number => {
+  if (item.type === 'ထုတ်') {
+    if (item.netPayout !== undefined) return item.netPayout;
+    if (item.commissionMode === 'deduct') return Math.max(0, item.amount - item.commission);
+    return item.amount;
+  }
+  return item.amount;
+};
+
 export const ReportModal: React.FC<ReportModalProps> = ({
   title,
   icon,
@@ -45,13 +55,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     );
   });
 
+  // Calculate actual cash flows
   const totalIn = filteredData
     .filter((t) => t.type === 'သွင်း')
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + getActualCashAmount(item), 0);
 
   const totalOut = filteredData
     .filter((t) => t.type === 'ထုတ်')
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + getActualCashAmount(item), 0);
 
   const netAmount = totalIn - totalOut;
   const totalComm = filteredData.reduce((sum, item) => sum + item.commission, 0);
@@ -61,19 +72,30 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       alert('ဒေါင်းလုဒ်ဆွဲရန် ဒေတာ မရှိပါ။');
       return;
     }
-    const headers = ['စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,သွင်း/ထုတ်,ပမာဏ(Ks),ကော်မရှင်(Ks),ဖုန်း,Wallet/Account,မှတ်ချက်'];
-    const rows = filteredData.map((d, index) => [
-      index + 1,
-      `"${d.date}"`,
-      `"${d.time || '-'}"`,
-      `"${d.customerName}"`,
-      `"${d.type}"`,
-      d.amount,
-      d.commission,
-      `"${d.phone}"`,
-      `"${d.walletName}"`,
-      `"${d.note || '-'}"`,
-    ].join(','));
+    const headers = ['စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,သွင်း/ထုတ်,လက်ငင်းပေး/ရငွေ(Ks),မူလလွှဲငွေ(Ks),ကော်မရှင်(Ks),ကော်မရှင်ပုံစံ,ဖုန်း,Wallet/Account,မှတ်ချက်'];
+    const rows = filteredData.map((d, index) => {
+      const actualCash = getActualCashAmount(d);
+      const isCashOut = d.type === 'ထုတ်';
+      const commModeLabel = isCashOut
+        ? d.commissionMode === 'deduct'
+          ? 'မူလငွေမှ နုတ်ယူ'
+          : 'သက်သက်ပေး'
+        : '-';
+      return [
+        index + 1,
+        `"${d.date}"`,
+        `"${d.time || '-'}"`,
+        `"${d.customerName}"`,
+        `"${d.type}"`,
+        actualCash,
+        d.amount,
+        d.commission,
+        `"${commModeLabel}"`,
+        `"${d.phone}"`,
+        `"${d.walletName}"`,
+        `"${d.note || '-'}"`,
+      ].join(',');
+    });
 
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers, ...rows].join('\n');
     const encodedUri = encodeURI(csvContent);
@@ -106,7 +128,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               title="CSV ဖိုင်အဖြစ် ဒေါင်းလုဒ်ယူမည်"
             >
               <Download className="w-3.5 h-3.5" />
@@ -114,7 +136,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               title="စာရင်းထုတ် ပရင့်ထုတ်မည်"
             >
               <Printer className="w-3.5 h-3.5" />
@@ -122,7 +144,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </button>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors ml-1"
+              className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors ml-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -145,7 +167,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           {/* Quick Date Buttons */}
           <button
             onClick={() => setSelectedReportDate(todayStr)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               selectedReportDate === todayStr
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -156,7 +178,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
           <button
             onClick={() => setSelectedReportDate('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               selectedReportDate === 'ALL'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -172,7 +194,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <select
                 value={selectedWalletFilter}
                 onChange={(e) => setSelectedWalletFilter(e.target.value)}
-                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none"
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
               >
                 <option value="all">Wallet အားလုံး</option>
                 {wallets.map((w) => (
@@ -209,7 +231,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
           <div className="p-3 bg-red-50/70 border border-red-100 rounded-xl">
             <span className="text-[11px] font-bold text-red-800 uppercase block mb-0.5">
-              စုစုပေါင်း ငွေထုတ် (Out)
+              စုစုပေါင်း လက်ငင်းငွေထုတ် (Out)
             </span>
             <div className="text-sm sm:text-base font-bold text-red-700">
               -{formatKs(totalOut)}
@@ -217,7 +239,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
           <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-xl">
             <span className="text-[11px] font-bold text-blue-800 uppercase block mb-0.5">
-              Net Balance Flow
+              Net Cash Flow (သွင်း - ထုတ်)
             </span>
             <div
               className={`text-sm sm:text-base font-bold ${
@@ -246,7 +268,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <th className="p-3">နေ့စွဲ/အချိန်</th>
                 <th className="p-3">ဖောက်သည် အမည်</th>
                 <th className="p-3 text-center">အမျိုးအစား</th>
-                <th className="p-3 text-right">မူလ ပမာဏ (Ks)</th>
+                <th className="p-3 text-right">လက်ငင်းငွေ ပမာဏ (Ks)</th>
                 <th className="p-3 text-right">ကော်မရှင် (Ks)</th>
                 <th className="p-3">ဖုန်းနံပါတ်</th>
                 <th className="p-3">Wallet / အကောင့်</th>
@@ -263,6 +285,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               ) : (
                 filteredData.map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
+                  const actualCash = getActualCashAmount(item);
+                  const isDeducted = isCashOut && item.commissionMode === 'deduct';
+
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3 text-slate-500 font-medium">{index + 1}</td>
@@ -288,15 +313,28 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                           {item.type}
                         </span>
                       </td>
+                      {/* ACTUAL CASH AMOUNT COLUMN */}
                       <td
                         className={`p-3 text-right font-bold whitespace-nowrap ${
                           isCashOut ? 'text-red-600' : 'text-slate-800'
                         }`}
                       >
-                        {isCashOut ? `- ${item.amount.toLocaleString()}` : item.amount.toLocaleString()} Ks
+                        <div>
+                          {isCashOut ? `- ${actualCash.toLocaleString()}` : actualCash.toLocaleString()} Ks
+                        </div>
+                        {isDeducted && (
+                          <div className="text-[10px] font-normal text-slate-400">
+                            (မူလလွှဲငွေ: {item.amount.toLocaleString()} Ks)
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-right text-emerald-600 font-bold whitespace-nowrap">
                         +{item.commission.toLocaleString()} Ks
+                        {isCashOut && (
+                          <div className="text-[10px] font-normal text-slate-400">
+                            {isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သီးသန့်ပေး)'}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-slate-600 font-mono">{item.phone}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">
@@ -309,7 +347,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                           {onViewReceipt && (
                             <button
                               onClick={() => onViewReceipt(item)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                               title="ဘောက်ချာ ကြည့်မည်"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -322,7 +360,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                                   onDeleteTransaction(item.id);
                                 }
                               }}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
                               title="စာရင်းဖျက်မည်"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -339,7 +377,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-800">
                 <tr>
                   <td colSpan={4} className="p-3 text-right">
-                    စုစုပေါင်း (Net Balance Flow):
+                    စုစုပေါင်း လက်ငင်းငွေစီးဆင်းမှု (Net Cash Flow):
                   </td>
                   <td
                     className={`p-3 text-right ${

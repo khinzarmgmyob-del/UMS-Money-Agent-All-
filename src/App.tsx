@@ -116,14 +116,23 @@ export default function App() {
   const totalCapital = cashBalance + totalWalletBalance;
 
   // Today Statistics
+  const getActualCash = (item: Transaction): number => {
+    if (item.type === 'ထုတ်') {
+      if (item.netPayout !== undefined) return item.netPayout;
+      if (item.commissionMode === 'deduct') return Math.max(0, item.amount - item.commission);
+      return item.amount;
+    }
+    return item.amount;
+  };
+
   const todayTransactions = transactions.filter((t) => t.date === todayStr);
   const todayCommission = todayTransactions.reduce((sum, item) => sum + item.commission, 0);
   const todayIn = todayTransactions
     .filter((t) => t.type === 'သွင်း')
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + getActualCash(item), 0);
   const todayOut = todayTransactions
     .filter((t) => t.type === 'ထုတ်')
-    .reduce((sum, item) => sum + item.amount, 0);
+    .reduce((sum, item) => sum + getActualCash(item), 0);
 
   // Filter Transactions for Reports
   const filterList = (accountTypeFilter?: 'Wallet' | 'Cash') => {
@@ -562,7 +571,7 @@ export default function App() {
                   <th className="p-3">နေ့စွဲ/အချိန်</th>
                   <th className="p-3">ဖောက်သည် အမည်</th>
                   <th className="p-3 text-center">အမျိုးအစား</th>
-                  <th className="p-3 text-right">မူလ ပမာဏ (Ks)</th>
+                  <th className="p-3 text-right">လက်ငင်းငွေ ပမာဏ (Ks)</th>
                   <th className="p-3 text-right">ကော်မရှင် (Ks)</th>
                   <th className="p-3">ဖုန်းနံပါတ်</th>
                   <th className="p-3">Wallet/Account</th>
@@ -572,6 +581,8 @@ export default function App() {
               <tbody className="divide-y divide-slate-200">
                 {recentTransactions.slice(0, 8).map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
+                  const actualCash = getActualCash(item);
+                  const isDeducted = isCashOut && item.commissionMode === 'deduct';
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3 text-slate-500">{index + 1}</td>
@@ -596,15 +607,28 @@ export default function App() {
                           {item.type}
                         </span>
                       </td>
+                      {/* Actual cash given / received */}
                       <td
                         className={`p-3 text-right font-bold whitespace-nowrap ${
                           isCashOut ? 'text-red-600' : 'text-slate-900'
                         }`}
                       >
-                        {isCashOut ? `- ${item.amount.toLocaleString()}` : item.amount.toLocaleString()} Ks
+                        <div>
+                          {isCashOut ? `- ${actualCash.toLocaleString()}` : actualCash.toLocaleString()} Ks
+                        </div>
+                        {isDeducted && (
+                          <div className="text-[10px] font-normal text-slate-400">
+                            (မူလလွှဲငွေ: {item.amount.toLocaleString()} Ks)
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-right text-emerald-600 font-bold whitespace-nowrap">
                         +{item.commission.toLocaleString()} Ks
+                        {isCashOut && (
+                          <div className="text-[10px] font-normal text-slate-400">
+                            {isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သီးသန့်ပေး)'}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3 text-slate-600 font-mono">{item.phone}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">
