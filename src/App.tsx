@@ -32,6 +32,7 @@ import { CashEditModal } from './components/CashEditModal';
 import { ReportModal, getCommissionBreakdown } from './components/ReportModal';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShopProfileModal } from './components/ShopProfileModal';
+import { TotalAccountsReportModal } from './components/TotalAccountsReportModal';
 
 // Initial Sample Cash Accounts
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -120,6 +121,7 @@ export default function App() {
   const [showWalletReport, setShowWalletReport] = useState<boolean>(false);
   const [showCashReport, setShowCashReport] = useState<boolean>(false);
   const [showAllTransactionsModal, setShowAllTransactionsModal] = useState<boolean>(false);
+  const [showTotalAccountsReport, setShowTotalAccountsReport] = useState<boolean>(false);
 
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
 
@@ -232,12 +234,13 @@ export default function App() {
       );
 
       // 2. Update Selected Cash Account:
-      // Cash In: Agent receives cash + commission from customer -> Cash Account INCREASES
-      // Cash Out: Agent gives cash to customer -> Cash Account DECREASES
-      // (If deduct: - (amount - commission); If separate: - amount + commission)
+      // Cash In: Agent receives cash + commission from customer -> Cash Account INCREASES (+ amount + commission)
+      // Cash Out:
+      // - If deduct (မူလငွေမှ နုတ်): Agent pays (amount - commission) in cash -> Cash Account decreases by -(amount - commission)
+      // - If separate (သက်သက်ပေး): Agent pays (amount) and receives (commission) cash -> Cash Account net change is -(amount - commission)
       const cashDelta = isCashOut
-        ? -(txData.netPayout ?? (txData.commissionMode === 'deduct' ? txData.amount - txData.commission : txData.amount))
-        : txData.amount + txData.commission;
+        ? -(txData.amount - (txData.commission || 0))
+        : txData.amount + (txData.commission || 0);
 
       setCashAccounts((prevAccounts) =>
         prevAccounts.map((c) => {
@@ -544,19 +547,30 @@ export default function App() {
             </div>
           </div>
 
-          {/* CARD 4: TOTAL CAPITAL (CASH + WALLETS) */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600">
+          {/* CARD 4: TOTAL ALL ACCOUNTS BALANCE (CASH + WALLETS) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-600">🌐 စုစုပေါင်း မတည်ငွေ</span>
-              <span className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
-                Cash + Wallets
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                🌐 စုစုပေါင်း ငွေစာရင်းအားလုံးလက်ကျန်
               </span>
+              <button
+                onClick={() => {
+                  setSelectedReportDate(todayStr);
+                  setShowTotalAccountsReport(true);
+                }}
+                className="text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+              >
+                📊 အသေးစိတ်
+              </button>
             </div>
             <h2 className="text-2xl font-black text-indigo-900 tracking-tight">
               {formatKs(totalCapital)}
             </h2>
-            <div className="mt-2 text-xs font-semibold text-slate-500">
-              {formatLakh(totalCapital)}
+            <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+              <span>{formatLakh(totalCapital)}</span>
+              <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+                ငွေသား ({cashAccounts.length}) + Wallets ({wallets.length})
+              </span>
             </div>
           </div>
         </div>
@@ -1009,6 +1023,19 @@ export default function App() {
           transaction={activeReceipt}
           shopProfile={shopProfile}
           onClose={() => setActiveReceipt(null)}
+        />
+      )}
+
+      {/* 10. Total All Accounts Balance Comprehensive Ledger Report Modal */}
+      {showTotalAccountsReport && (
+        <TotalAccountsReportModal
+          onClose={() => setShowTotalAccountsReport(false)}
+          wallets={wallets}
+          cashAccounts={cashAccounts}
+          transactions={transactions}
+          shopProfile={shopProfile}
+          selectedReportDate={selectedReportDate}
+          setSelectedReportDate={setSelectedReportDate}
         />
       )}
     </div>
