@@ -1,5 +1,6 @@
 export type TransactionType = 'သွင်း' | 'ထုတ်';
 export type CommissionMode = 'deduct' | 'separate';
+export type CommissionChannel = 'Cash' | 'Wallet';
 
 export interface ShopProfile {
   shopName: string;
@@ -35,10 +36,11 @@ export interface Transaction {
   amount: number;
   commission: number;
   commissionMode?: CommissionMode; // 'deduct' (မူလငွေမှ နုတ်ယူ) | 'separate' (သက်သက်ပေး)
+  commissionChannel?: CommissionChannel; // 'Cash' (ငွေသားထဲဝင်) | 'Wallet' (Wallet ထဲကျန်/လျော့လွှဲ)
   netPayout?: number; // ဖောက်သည်သို့ လက်ငင်းပေးအပ်ငွေ
   phone: string;
   walletName: string; // e.g. KPay, WaveMoney, CB Pay
-  cashAccountName: string; // e.g. ဆိုင်ရှေ့ငွေပုံး (Main Counter), အရန်ငွေပုံး
+  cashAccountName: string; // e.g. ဆိုင်ရှေ့ငွေပုံး, ကာတာငွေသေတ္တာ
   accountType?: 'Wallet' | 'Cash';
   note?: string;
 }

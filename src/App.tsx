@@ -29,7 +29,7 @@ import { LicenseLockScreen } from './components/LicenseLockScreen';
 import { TransactionModal } from './components/TransactionModal';
 import { WalletModal } from './components/WalletModal';
 import { CashEditModal } from './components/CashEditModal';
-import { ReportModal } from './components/ReportModal';
+import { ReportModal, getCommissionBreakdown } from './components/ReportModal';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShopProfileModal } from './components/ShopProfileModal';
 
@@ -168,7 +168,10 @@ export default function App() {
 
   // Today Statistics
   const todayTransactions = transactions.filter((t) => t.date === todayStr);
-  const todayCommission = todayTransactions.reduce((sum, item) => sum + item.commission, 0);
+  const todayCashComm = todayTransactions.reduce((sum, item) => sum + getCommissionBreakdown(item).cashComm, 0);
+  const todayWalletComm = todayTransactions.reduce((sum, item) => sum + getCommissionBreakdown(item).walletComm, 0);
+  const todayCommission = todayCashComm + todayWalletComm;
+
   const todayIn = todayTransactions
     .filter((t) => t.type === 'သွင်း')
     .reduce((sum, item) => sum + getActualCash(item), 0);
@@ -177,13 +180,22 @@ export default function App() {
     .reduce((sum, item) => sum + getActualCash(item), 0);
 
   // Filter Transactions for Reports
-  const filterList = (filterType?: 'Wallet' | 'Cash') => {
+  const filterList = () => {
     return transactions.filter((t) => {
       const matchDate = selectedReportDate === 'ALL' ? true : t.date === selectedReportDate;
-      const matchWallet =
-        selectedWalletFilter !== 'all' ? t.walletName === selectedWalletFilter : true;
-      const matchCash =
-        selectedCashFilter !== 'all' ? t.cashAccountName === selectedCashFilter : true;
+      let matchWallet = true;
+      if (selectedWalletFilter === 'none') {
+        matchWallet = !t.walletName || t.walletName === 'None' || t.walletName === '-';
+      } else if (selectedWalletFilter !== 'all') {
+        matchWallet = t.walletName === selectedWalletFilter;
+      }
+
+      let matchCash = true;
+      if (selectedCashFilter === 'none') {
+        matchCash = !t.cashAccountName || t.cashAccountName === 'None' || t.cashAccountName === '-';
+      } else if (selectedCashFilter !== 'all') {
+        matchCash = t.cashAccountName === selectedCashFilter;
+      }
 
       return matchDate && matchWallet && matchCash;
     });
@@ -452,6 +464,7 @@ export default function App() {
                 onClick={() => {
                   setSelectedReportDate(todayStr);
                   setSelectedCashFilter('all');
+                  setSelectedWalletFilter('all');
                   setShowCashReport(true);
                 }}
                 className="text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
@@ -487,6 +500,7 @@ export default function App() {
                 onClick={() => {
                   setSelectedReportDate(todayStr);
                   setSelectedWalletFilter('all');
+                  setSelectedCashFilter('all');
                   setShowWalletReport(true);
                 }}
                 className="text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
@@ -503,7 +517,34 @@ export default function App() {
             </div>
           </div>
 
-          {/* CARD 3: TOTAL CAPITAL (CASH + WALLETS) */}
+          {/* CARD 3: COMMISSION SUMMARY (REPLACED TOTAL CAPITAL CARD PER USER REQUEST) */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                📈 ကော်မရှင်ခ စာရင်း
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedReportDate(todayStr);
+                  setSelectedWalletFilter('all');
+                  setSelectedCashFilter('all');
+                  setShowCommissionReport(true);
+                }}
+                className="text-xs text-amber-700 hover:text-amber-900 bg-amber-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+              >
+                📊 အသေးစိတ်
+              </button>
+            </div>
+            <h2 className="text-2xl font-black text-amber-800 tracking-tight">
+              +{formatKs(todayCommission)}
+            </h2>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+              <span className="text-amber-800 font-semibold">💵 ငွေသား: +{formatKs(todayCashComm)}</span>
+              <span className="text-purple-800 font-semibold">📱 Wallet: +{formatKs(todayWalletComm)}</span>
+            </div>
+          </div>
+
+          {/* CARD 4: TOTAL CAPITAL (CASH + WALLETS) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-600">🌐 စုစုပေါင်း မတည်ငွေ</span>
@@ -516,28 +557,6 @@ export default function App() {
             </h2>
             <div className="mt-2 text-xs font-semibold text-slate-500">
               {formatLakh(totalCapital)}
-            </div>
-          </div>
-
-          {/* CARD 4: TODAY COMMISSION */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-emerald-500">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-slate-600">📈 ယနေ့ ကော်မရှင်ဝင်ငွေ</span>
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setShowCommissionReport(true);
-                }}
-                className="text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
-              >
-                📊 အသေးစိတ်
-              </button>
-            </div>
-            <h2 className="text-2xl font-black text-emerald-600 tracking-tight">
-              +{formatKs(todayCommission)}
-            </h2>
-            <div className="mt-2 text-xs text-slate-500 font-medium">
-              ယနေ့ လုပ်ဆောင်ချက် {todayTransactions.length} ခု
             </div>
           </div>
         </div>
@@ -619,6 +638,7 @@ export default function App() {
                   key={c.id}
                   onClick={() => {
                     setSelectedCashFilter(c.name);
+                    setSelectedWalletFilter('all');
                     setSelectedReportDate('ALL');
                     setShowCashReport(true);
                   }}
@@ -667,6 +687,7 @@ export default function App() {
                   key={w.id}
                   onClick={() => {
                     setSelectedWalletFilter(w.name);
+                    setSelectedCashFilter('all');
                     setSelectedReportDate('ALL');
                     setShowWalletReport(true);
                   }}
@@ -729,23 +750,24 @@ export default function App() {
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
                 <tr>
-                  <th className="p-3">စဉ်</th>
-                  <th className="p-3">နေ့စွဲ/အချိန်</th>
-                  <th className="p-3">ဖောက်သည် အမည်</th>
-                  <th className="p-3 text-center">အမျိုးအစား</th>
-                  <th className="p-3 text-right">လက်ငင်းငွေ ပမာဏ (Ks)</th>
-                  <th className="p-3 text-right">ကော်မရှင် (Ks)</th>
-                  <th className="p-3">ဖုန်းနံပါတ်</th>
-                  <th className="p-3">Wallet အကောင့်</th>
-                  <th className="p-3">ငွေသားအကောင့်</th>
-                  <th className="p-3 text-center">ပြေစာ</th>
+                  <th className="p-3 whitespace-nowrap">စဉ်</th>
+                  <th className="p-3 whitespace-nowrap">နေ့စွဲ/အချိန်</th>
+                  <th className="p-3 whitespace-nowrap">ဖောက်သည် အမည်</th>
+                  <th className="p-3 text-center whitespace-nowrap">အမျိုးအစား</th>
+                  <th className="p-3 text-right whitespace-nowrap">လက်ငင်းငွေ (Ks)</th>
+                  <th className="p-3 text-right whitespace-nowrap bg-amber-50/50 text-amber-900">💵 ငွေသားကော်မရှင်</th>
+                  <th className="p-3 text-right whitespace-nowrap bg-purple-50/50 text-purple-900">📱 Walletကော်မရှင်</th>
+                  <th className="p-3 whitespace-nowrap">ဖုန်းနံပါတ်</th>
+                  <th className="p-3 whitespace-nowrap">Wallet အကောင့်</th>
+                  <th className="p-3 whitespace-nowrap">ငွေသားအကောင့်</th>
+                  <th className="p-3 text-center whitespace-nowrap">ပြေစာ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {recentTransactions.slice(0, 8).map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
                   const actualCash = getActualCash(item);
-                  const isDeducted = isCashOut && item.commissionMode === 'deduct';
+                  const { cashComm, walletComm } = getCommissionBreakdown(item);
                   return (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3 text-slate-500">{index + 1}</td>
@@ -758,7 +780,7 @@ export default function App() {
                       <td className="p-3 font-bold text-slate-900 whitespace-nowrap">
                         {item.customerName}
                       </td>
-                      <td className="p-3 text-center">
+                      <td className="p-3 text-center whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
                             isCashOut
@@ -770,6 +792,7 @@ export default function App() {
                           {item.type}
                         </span>
                       </td>
+
                       {/* Actual cash given / received */}
                       <td
                         className={`p-3 text-right font-bold whitespace-nowrap ${
@@ -779,21 +802,19 @@ export default function App() {
                         <div>
                           {isCashOut ? `- ${actualCash.toLocaleString()}` : actualCash.toLocaleString()} Ks
                         </div>
-                        {isDeducted && (
-                          <div className="text-[10px] font-normal text-slate-400">
-                            (မူလလွှဲငွေ: {item.amount.toLocaleString()} Ks)
-                          </div>
-                        )}
                       </td>
-                      <td className="p-3 text-right text-emerald-600 font-bold whitespace-nowrap">
-                        +{item.commission.toLocaleString()} Ks
-                        {isCashOut && (
-                          <div className="text-[10px] font-normal text-slate-400">
-                            {isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သီးသန့်ပေး)'}
-                          </div>
-                        )}
+
+                      {/* Cash Commission */}
+                      <td className="p-3 text-right text-amber-800 font-bold whitespace-nowrap bg-amber-50/30">
+                        {cashComm > 0 ? `+${cashComm.toLocaleString()} Ks` : '-'}
                       </td>
-                      <td className="p-3 text-slate-600 font-mono">{item.phone}</td>
+
+                      {/* Wallet Commission */}
+                      <td className="p-3 text-right text-purple-800 font-bold whitespace-nowrap bg-purple-50/30">
+                        {walletComm > 0 ? `+${walletComm.toLocaleString()} Ks` : '-'}
+                      </td>
+
+                      <td className="p-3 text-slate-600 font-mono whitespace-nowrap">{item.phone}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">
                         <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
                           {item.walletName}
@@ -916,7 +937,7 @@ export default function App() {
           cashAccounts={cashAccounts}
           selectedCashFilter={selectedCashFilter}
           setSelectedCashFilter={setSelectedCashFilter}
-          data={filterList('Wallet')}
+          data={filterList()}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
         />
@@ -936,16 +957,16 @@ export default function App() {
           cashAccounts={cashAccounts}
           selectedCashFilter={selectedCashFilter}
           setSelectedCashFilter={setSelectedCashFilter}
-          data={filterList('Cash')}
+          data={filterList()}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
         />
       )}
 
-      {/* 7. Commission Report Modal */}
+      {/* 7. Commission Report Modal (Specialized Commission Breakdown) */}
       {showCommissionReport && (
         <ReportModal
-          title="📈 ကော်မရှင်ဝင်ငွေ အသေးစိတ် Report"
+          title="📈 ကော်မရှင်ခ စာရင်း အသေးစိတ် Report"
           icon={<TrendingUp className="w-5 h-5" />}
           onClose={() => setShowCommissionReport(false)}
           selectedReportDate={selectedReportDate}
