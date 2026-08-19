@@ -1,44 +1,88 @@
 import React, { useState } from 'react';
-import { X, Banknote, Check } from 'lucide-react';
+import { X, Banknote, Plus, Trash2, Edit3, Check, DollarSign } from 'lucide-react';
+import { CashAccountItem } from '../types';
 import { getTodayFormatted, formatKs } from '../utils/formatters';
 
 interface CashEditModalProps {
-  currentCash: number;
-  currentDate: string;
+  cashAccounts: CashAccountItem[];
   onClose: () => void;
-  onSave: (newAmount: number, date: string) => void;
+  onAddAccount: (acc: Omit<CashAccountItem, 'id'>) => void;
+  onUpdateAccount: (acc: CashAccountItem) => void;
+  onDeleteAccount: (id: number) => void;
 }
 
-export const CashEditModal: React.FC<CashEditModalProps> = ({
-  currentCash,
-  currentDate,
-  onClose,
-  onSave,
-}) => {
-  const [amount, setAmount] = useState<string>(currentCash.toString());
-  const [date, setDate] = useState<string>(currentDate || getTodayFormatted());
+const PRESET_CASH_ACCOUNTS = [
+  'ဆိုင်ရှေ့ငွေပုံး (Counter Box)',
+  'ကာတာငွေသေတ္တာ (Safe Box)',
+  'အရန်ငွေသေတ္တာ (Backup Cash)',
+  'Cash Box 1',
+  'Cash Box 2',
+  'သိမ်းငွေအကောင့်',
+];
 
-  const numAmount = parseFloat(amount) || 0;
+export const CashEditModal: React.FC<CashEditModalProps> = ({
+  cashAccounts,
+  onClose,
+  onAddAccount,
+  onUpdateAccount,
+  onDeleteAccount,
+}) => {
+  const [editingAccount, setEditingAccount] = useState<CashAccountItem | null>(null);
+  const [name, setName] = useState('');
+  const [balance, setBalance] = useState('');
+  const [date, setDate] = useState(getTodayFormatted());
+  const [note, setNote] = useState('');
+
+  const totalCash = cashAccounts.reduce((sum, a) => sum + a.balance, 0);
+
+  const handleStartEdit = (a: CashAccountItem) => {
+    setEditingAccount(a);
+    setName(a.name);
+    setBalance(a.balance.toString());
+    setDate(a.updatedDate || getTodayFormatted());
+    setNote(a.note || '');
+  };
+
+  const handleResetForm = () => {
+    setEditingAccount(null);
+    setName('');
+    setBalance('');
+    setDate(getTodayFormatted());
+    setNote('');
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (amount === '') {
-      alert('ကျေးဇူးပြု၍ လက်ငင်းငွေသား ပမာဏကို ဖြည့်စွက်ပါ။');
+    if (!name.trim() || balance === '') {
+      alert('ကျေးဇူးပြု၍ လက်ငင်းငွေသား အကောင့်အမည်နှင့် လက်ကျန်မတည်ငွေ ဖြည့်စွက်ပါ။');
       return;
     }
-    onSave(numAmount, date);
-  };
 
-  const addCashPreset = (val: number) => {
-    setAmount((prev) => {
-      const cur = parseFloat(prev) || 0;
-      return (cur + val).toString();
-    });
+    const numBal = parseFloat(balance) || 0;
+
+    if (editingAccount) {
+      onUpdateAccount({
+        ...editingAccount,
+        name: name.trim(),
+        balance: numBal,
+        updatedDate: date,
+        note: note.trim() || undefined,
+      });
+    } else {
+      onAddAccount({
+        name: name.trim(),
+        balance: numBal,
+        updatedDate: date,
+        note: note.trim() || undefined,
+      });
+    }
+
+    handleResetForm();
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
           <div className="flex items-center gap-2.5">
@@ -47,89 +91,181 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-800">
-                💵 လက်ငင်းငွေသား ပြင်ဆင်ရန်
+                💵 လက်ငင်းငွေသား အကောင့်များ စီမံခန့်ခွဲမှု
               </h3>
-              <p className="text-xs text-slate-400">Cash in Hand / Cash Drawer Balance</p>
+              <p className="text-xs text-slate-400">Cash Drawers / Cash Accounts Management</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Total Summary */}
+        <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 mb-5 flex items-center justify-between">
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                လက်ငင်းငွေသား ပမာဏ (Ks) <span className="text-red-500">*</span>
+            <div className="text-xs text-emerald-800 font-semibold">စုစုပေါင်း လက်ငင်းငွေသား လက်ကျန်</div>
+            <div className="text-xl font-black text-emerald-700 mt-0.5">{formatKs(totalCash)}</div>
+          </div>
+          <div className="text-right text-xs text-emerald-600 font-medium">
+            အကောင့်ပေါင်း {cashAccounts.length} ခု
+          </div>
+        </div>
+
+        {/* Existing Accounts List */}
+        <div className="mb-6">
+          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+            လက်ရှိ လက်ငင်းငွေသား အကောင့်များ ({cashAccounts.length} ခု)
+          </h4>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+            {cashAccounts.map((a) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl hover:border-emerald-200 transition-colors"
+              >
+                <div>
+                  <div className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                    <span>💵</span>
+                    <span>{a.name}</span>
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {a.note ? `${a.note} • ` : ''}
+                    နောက်ဆုံးပြင်: {a.updatedDate}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <div className="font-bold text-emerald-600 text-sm">{formatKs(a.balance)}</div>
+                    <div className="text-xs text-slate-400">{(a.balance / 100000).toFixed(1)} သိန်း</div>
+                  </div>
+                  <button
+                    onClick={() => handleStartEdit(a)}
+                    className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                    title="ပြင်ဆင်မည်"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  {cashAccounts.length > 1 && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`'${a.name}' ငွေသားအကောင့်ကို ဖျက်ရန် သေချာပါသလား?`)) {
+                          onDeleteAccount(a.id);
+                        }
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg transition-colors cursor-pointer"
+                      title="ဖျက်မည်"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Add or Edit Form */}
+        <form onSubmit={handleSubmit} className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800">
+              {editingAccount ? `✏️ '${editingAccount.name}' ကို ပြင်ဆင်ရန်` : '➕ လက်ငင်းငွေသား အကောင့်အသစ် ထည့်သွင်းရန်'}
+            </span>
+            {editingAccount && (
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+              >
+                အသစ်ထည့်မည်သို့ ပြောင်းရန်
+              </button>
+            )}
+          </div>
+
+          {!editingAccount && (
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                အသုံးများသော အမည်များ ရွေးချယ်နိုင်သည်:
               </label>
-              <span className="text-xs font-bold text-emerald-600">
-                {formatKs(numAmount)}
-              </span>
+              <div className="flex flex-wrap gap-1">
+                {PRESET_CASH_ACCOUNTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setName(p)}
+                    className="px-2 py-0.5 bg-white border border-slate-200 hover:border-emerald-400 rounded text-xs text-slate-700 cursor-pointer"
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
-            <input
-              type="number"
-              required
-              placeholder="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-slate-50 focus:bg-white border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 rounded-xl px-4 py-3 text-lg font-bold text-slate-800 outline-none"
-            />
-            {/* Quick Presets */}
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              <button
-                type="button"
-                onClick={() => addCashPreset(500000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium"
-              >
-                +5 သိန်း
-              </button>
-              <button
-                type="button"
-                onClick={() => addCashPreset(1000000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium"
-              >
-                +10 သိန်း
-              </button>
-              <button
-                type="button"
-                onClick={() => addCashPreset(5000000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium"
-              >
-                +50 သိန်း
-              </button>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                အကောင့် / ငွေပုံး အမည် <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="ဥပမာ - ဆိုင်ရှေ့ငွေပုံး"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm text-slate-800 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                လက်ကျန် မတည်ငွေ (Ks) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                required
+                placeholder="0"
+                value={balance}
+                onChange={(e) => setBalance(e.target.value)}
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none"
+              />
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              ပြင်ဆင်သည့် နေ့စွဲ
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-800"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                မှတ်ချက် / နေရာ (ရွေးချယ်ရန်)
+              </label>
+              <input
+                type="text"
+                placeholder="ဥပမာ - ကောင်တာ ၁"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                ပြင်ဆင်သည့် နေ့စွဲ
+              </label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800"
+              />
+            </div>
           </div>
 
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
-            >
-              ပယ်ဖျက်မည်
-            </button>
+          <div className="flex gap-2 pt-1">
             <button
               type="submit"
-              className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center justify-center gap-1.5"
             >
               <Check className="w-4 h-4" />
-              ပြင်ဆင်ချက် သိမ်းမည်
+              {editingAccount ? 'ပြင်ဆင်ချက် သိမ်းမည်' : 'ငွေသားအကောင့် အသစ်သိမ်းမည် +'}
             </button>
           </div>
         </form>

@@ -45,7 +45,8 @@ ${shopProfile.address ? `လိပ်စာ: ${shopProfile.address}\n` : ''}${sh
 မူလငွေပမာဏ: ${transaction.amount.toLocaleString()} Ks
 ကော်မရှင်ခ: ${transaction.commission.toLocaleString()} Ks ${isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
 ${isCashOut ? `ဖောက်သည်သို့ အမှန်ပေးငွေ: ${netCash.toLocaleString()} Ks\n` : ''}ဖုန်းနံပါတ်: ${transaction.phone}
-Wallet/Account: ${transaction.walletName}
+Wallet အကောင့်: ${transaction.walletName}
+ငွေသားအကောင့်: ${transaction.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
 ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}================================
 အဆင်ပြေစွာ အသုံးပြုနိုင်ပါစေ။ ကျေးဇူးတင်ပါသည်။
   `.trim();
@@ -137,9 +138,15 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-slate-500">အသုံးပြုသည့် Account:</span>
+            <span className="text-slate-500">အသုံးပြုသည့် Wallet:</span>
             <span className="font-semibold text-slate-800">{transaction.walletName}</span>
           </div>
+          {transaction.cashAccountName && (
+            <div className="flex justify-between">
+              <span className="text-slate-500">ငွေသားအကောင့်:</span>
+              <span className="font-semibold text-slate-800">{transaction.cashAccountName}</span>
+            </div>
+          )}
 
           <div className="pt-2 border-t border-dashed border-slate-300">
             <div className="flex justify-between text-sm py-1 font-bold">

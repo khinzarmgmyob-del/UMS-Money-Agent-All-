@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { X, ArrowDownRight, ArrowUpRight, Check, Coins, Percent, DollarSign } from 'lucide-react';
-import { Transaction, TransactionType, WalletItem, CommissionMode } from '../types';
+import { X, ArrowDownRight, ArrowUpRight, Check, Coins, Percent, DollarSign, Wallet, Banknote } from 'lucide-react';
+import { Transaction, TransactionType, WalletItem, CashAccountItem, CommissionMode } from '../types';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs } from '../utils/formatters';
 
 interface TransactionModalProps {
   initialType?: TransactionType;
   wallets: WalletItem[];
-  cashBalance: number;
+  cashAccounts: CashAccountItem[];
   onClose: () => void;
   onSave: (transaction: Omit<Transaction, 'id'>, updateBalances: boolean) => void;
 }
@@ -14,7 +14,7 @@ interface TransactionModalProps {
 export const TransactionModal: React.FC<TransactionModalProps> = ({
   initialType = 'သွင်း',
   wallets,
-  cashBalance,
+  cashAccounts,
   onClose,
   onSave,
 }) => {
@@ -22,6 +22,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [walletName, setWalletName] = useState<string>(wallets[0]?.name || 'KPay');
+  const [cashAccountName, setCashAccountName] = useState<string>(cashAccounts[0]?.name || 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)');
   const [amount, setAmount] = useState<string>('');
   const [commission, setCommission] = useState<string>('3000');
   const [commissionMode, setCommissionMode] = useState<CommissionMode>('deduct'); // Default 'deduct' for cash out
@@ -34,8 +35,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const numCommission = parseFloat(commission) || 0;
 
   const isCashOut = type === 'ထုတ်';
-  const selectedWallet = wallets.find((w) => w.name === walletName);
-  const isCashAccount = walletName === 'Main Cash Box';
+  const selectedWallet = wallets.find((w) => w.name === walletName) || wallets[0];
+  const selectedCashAccount = cashAccounts.find((c) => c.name === cashAccountName) || cashAccounts[0];
 
   // For Cash Out: Calculate the actual Cash given to customer
   // If Deduct: Customer gets (amount - commission)
@@ -89,16 +90,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       netPayout: isCashOut ? netCashPayoutToCustomer : undefined,
       phone: phone.trim() || '-',
       walletName: walletName,
-      accountType: isCashAccount ? 'Cash' : 'Wallet',
+      cashAccountName: cashAccountName,
+      accountType: 'Wallet',
       note: note.trim() || undefined,
     };
 
     onSave(newTx, autoUpdateBalances);
   };
 
+  // Calculate live preview deltas
+  const walletBalanceBefore = selectedWallet ? selectedWallet.balance : 0;
+  const walletBalanceAfter = isCashOut
+    ? walletBalanceBefore + numAmount // Customer transfers to agent
+    : walletBalanceBefore - numAmount; // Agent transfers to customer
+
+  const cashBalanceBefore = selectedCashAccount ? selectedCashAccount.balance : 0;
+  const cashBalanceAfter = isCashOut
+    ? commissionMode === 'deduct'
+      ? cashBalanceBefore - (numAmount - numCommission)
+      : cashBalanceBefore - numAmount + numCommission
+    : cashBalanceBefore + numAmount + numCommission;
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[95vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[95vh] overflow-y-auto">
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
           <div className="flex items-center gap-2.5">
@@ -118,7 +133,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -129,7 +144,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <button
             type="button"
             onClick={() => setType('သွင်း')}
-            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               !isCashOut
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -141,7 +156,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <button
             type="button"
             onClick={() => setType('ထုတ်')}
-            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
+            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               isCashOut
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -182,28 +197,59 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
 
-          {/* Wallet / Account Selection */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
-              <span>{isCashOut ? 'ဖောက်သည်ထံမှ လက်ခံမည့် Wallet / ငွေစာရင်း' : 'ဖောက်သည်သို့ လွှဲပေးမည့် Wallet / ငွေစာရင်း'}</span>
-              {selectedWallet && (
-                <span className="text-indigo-600 font-semibold">
-                  လက်ကျန်: {formatKs(selectedWallet.balance)}
+          {/* Account Selections: 1) Wallet Account, 2) Cash Account */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+            {/* Wallet Selection */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                  {isCashOut ? 'လွှဲဝင်မည့် Wallet' : 'လွှဲပေးမည့် Wallet'}
                 </span>
+              </label>
+              <select
+                value={walletName}
+                onChange={(e) => setWalletName(e.target.value)}
+                className="w-full bg-white border border-slate-300 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+              >
+                {wallets.map((w) => (
+                  <option key={w.id} value={w.name}>
+                    {w.name} ({formatKs(w.balance)})
+                  </option>
+                ))}
+              </select>
+              {selectedWallet && (
+                <div className="text-[11px] text-slate-500 mt-1">
+                  လက်ကျန်: <span className="font-bold text-indigo-600">{formatKs(selectedWallet.balance)}</span>
+                </div>
               )}
-            </label>
-            <select
-              value={walletName}
-              onChange={(e) => setWalletName(e.target.value)}
-              className="w-full bg-slate-50 focus:bg-white border border-slate-300 focus:border-indigo-500 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-800 outline-none"
-            >
-              {wallets.map((w) => (
-                <option key={w.id} value={w.name}>
-                  🏦 {w.name} ({formatKs(w.balance)})
-                </option>
-              ))}
-              <option value="Main Cash Box">💵 Main Cash Box (လက်ငင်းငွေသား: {formatKs(cashBalance)})</option>
-            </select>
+            </div>
+
+            {/* Cash Account Selection */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                  {isCashOut ? 'ငွေသားထုတ်ပေးမည့် အကောင့်' : 'ငွေသားလက်ခံမည့် အကောင့်'}
+                </span>
+              </label>
+              <select
+                value={cashAccountName}
+                onChange={(e) => setCashAccountName(e.target.value)}
+                className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+              >
+                {cashAccounts.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name} ({formatKs(c.balance)})
+                  </option>
+                ))}
+              </select>
+              {selectedCashAccount && (
+                <div className="text-[11px] text-slate-500 mt-1">
+                  လက်ကျန်: <span className="font-bold text-emerald-600">{formatKs(selectedCashAccount.balance)}</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Amount & Presets */}
@@ -230,35 +276,35 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFixedAmount(100000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 1 သိန်း
               </button>
               <button
                 type="button"
                 onClick={() => setFixedAmount(500000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 5 သိန်း
               </button>
               <button
                 type="button"
                 onClick={() => setFixedAmount(1000000)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors"
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 10 သိန်း
               </button>
               <button
                 type="button"
                 onClick={() => addAmount(100000)}
-                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-colors"
+                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 +1 သိန်း
               </button>
               <button
                 type="button"
                 onClick={() => addAmount(500000)}
-                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-colors"
+                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
               >
                 +5 သိန်း
               </button>
@@ -290,42 +336,42 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               <button
                 type="button"
                 onClick={() => setCommission('1000')}
-                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 1,000
               </button>
               <button
                 type="button"
                 onClick={() => setCommission('2000')}
-                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 2,000
               </button>
               <button
                 type="button"
                 onClick={() => setCommission('3000')}
-                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 3,000
               </button>
               <button
                 type="button"
                 onClick={() => setCommission('5000')}
-                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 5,000
               </button>
               <button
                 type="button"
                 onClick={() => calculateCommissionPercent(0.5)}
-                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 0.5%
               </button>
               <button
                 type="button"
                 onClick={() => calculateCommissionPercent(1.0)}
-                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium"
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 1%
               </button>
@@ -344,7 +390,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setCommissionMode('deduct')}
-                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
                     commissionMode === 'deduct'
                       ? 'bg-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs'
                       : 'bg-amber-100/40 border-amber-200 hover:bg-amber-100/70 text-slate-700'
@@ -371,7 +417,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setCommissionMode('separate')}
-                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                  className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer ${
                     commissionMode === 'separate'
                       ? 'bg-white border-amber-500 ring-2 ring-amber-400/30 shadow-xs'
                       : 'bg-amber-100/40 border-amber-200 hover:bg-amber-100/70 text-slate-700'
@@ -467,31 +513,25 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 onChange={(e) => setAutoUpdateBalances(e.target.checked)}
                 className="w-4 h-4 text-indigo-600 rounded"
               />
-              <span>လက်ကျန်ငွေများ အလိုအလျောက် ချိန်ညှိသိမ်းဆည်းမည်</span>
+              <span>လက်ကျန်ငွေများ အလိုအလျောက် ချိန်ညှိသိမ်းဆည်းမည် (Auto Double-Entry)</span>
             </label>
 
             {autoUpdateBalances && numAmount > 0 && (
-              <div className="text-xs text-indigo-700/90 pl-6 space-y-1">
-                {!isCashAccount && selectedWallet && (
-                  <div>
-                    • <b>{walletName}</b>: {formatKs(selectedWallet.balance)} →{' '}
-                    <span className="font-bold text-indigo-950">
-                      {formatKs(
-                        isCashOut
-                          ? selectedWallet.balance + numAmount
-                          : selectedWallet.balance - numAmount
-                      )}
-                    </span>
-                  </div>
-                )}
-                <div>
-                  • <b>Cash လက်ငင်းငွေ</b>: {formatKs(cashBalance)} →{' '}
-                  <span className="font-bold text-indigo-950">
-                    {formatKs(
-                      isCashOut
-                        ? cashBalance - netCashPayoutToCustomer + (commissionMode === 'separate' ? numCommission : 0)
-                        : cashBalance + numAmount + numCommission
-                    )}
+              <div className="text-xs text-indigo-700/90 pl-6 space-y-1.5 pt-1 border-t border-indigo-100">
+                <div className="flex items-center justify-between">
+                  <span>
+                    📱 <b>{walletName}</b> ({isCashOut ? 'တိုးမည် +' : 'နုတ်မည် -'}):
+                  </span>
+                  <span className="font-mono">
+                    {formatKs(walletBalanceBefore)} → <b className="text-indigo-950">{formatKs(walletBalanceAfter)}</b>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>
+                    💵 <b>{cashAccountName}</b> ({isCashOut ? 'နုတ်မည် -' : 'တိုးမည် +'}):
+                  </span>
+                  <span className="font-mono">
+                    {formatKs(cashBalanceBefore)} → <b className="text-indigo-950">{formatKs(cashBalanceAfter)}</b>
                   </span>
                 </div>
               </div>
@@ -503,13 +543,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-colors"
+              className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-bold transition-colors cursor-pointer"
             >
               ပယ်ဖျက်မည်
             </button>
             <button
               type="submit"
-              className={`flex-1 py-3 text-white rounded-xl text-sm font-bold shadow-md transition-all ${
+              className={`flex-1 py-3 text-white rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer ${
                 isCashOut
                   ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'

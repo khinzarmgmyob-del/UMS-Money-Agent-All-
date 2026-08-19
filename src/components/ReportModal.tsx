@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Calendar, Search, Download, Printer, ArrowDownRight, ArrowUpRight, FileText, Trash2, Eye } from 'lucide-react';
-import { Transaction, WalletItem } from '../types';
+import { X, Calendar, Search, Download, Printer, ArrowDownRight, ArrowUpRight, FileText, Trash2, Eye, Banknote, Wallet } from 'lucide-react';
+import { Transaction, WalletItem, CashAccountItem } from '../types';
 import { getTodayFormatted, formatKs } from '../utils/formatters';
 
 interface ReportModalProps {
@@ -12,6 +12,9 @@ interface ReportModalProps {
   wallets?: WalletItem[];
   selectedWalletFilter?: string;
   setSelectedWalletFilter?: (w: string) => void;
+  cashAccounts?: CashAccountItem[];
+  selectedCashFilter?: string;
+  setSelectedCashFilter?: (c: string) => void;
   data: Transaction[];
   onDeleteTransaction?: (id: number) => void;
   onViewReceipt?: (transaction: Transaction) => void;
@@ -36,6 +39,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   wallets,
   selectedWalletFilter,
   setSelectedWalletFilter,
+  cashAccounts,
+  selectedCashFilter,
+  setSelectedCashFilter,
   data,
   onDeleteTransaction,
   onViewReceipt,
@@ -43,14 +49,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const todayStr = getTodayFormatted();
 
-  // Filter with search query
+  // Filter with search query and cash account filter
   const filteredData = data.filter((item) => {
+    // Check cash filter
+    if (selectedCashFilter && selectedCashFilter !== 'all') {
+      if (item.cashAccountName !== selectedCashFilter) return false;
+    }
+
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
       item.customerName.toLowerCase().includes(query) ||
       item.phone.toLowerCase().includes(query) ||
       item.walletName.toLowerCase().includes(query) ||
+      (item.cashAccountName && item.cashAccountName.toLowerCase().includes(query)) ||
       (item.note && item.note.toLowerCase().includes(query))
     );
   });
@@ -72,7 +84,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       alert('ဒေါင်းလုဒ်ဆွဲရန် ဒေတာ မရှိပါ။');
       return;
     }
-    const headers = ['စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,သွင်း/ထုတ်,လက်ငင်းပေး/ရငွေ(Ks),မူလလွှဲငွေ(Ks),ကော်မရှင်(Ks),ကော်မရှင်ပုံစံ,ဖုန်း,Wallet/Account,မှတ်ချက်'];
+    const headers = ['စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,သွင်း/ထုတ်,လက်ငင်းပေး/ရငွေ(Ks),မူလလွှဲငွေ(Ks),ကော်မရှင်(Ks),ကော်မရှင်ပုံစံ,ဖုန်း,Walletအကောင့်,ငွေသားအကောင့်,မှတ်ချက်'];
     const rows = filteredData.map((d, index) => {
       const actualCash = getActualCashAmount(d);
       const isCashOut = d.type === 'ထုတ်';
@@ -93,6 +105,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         `"${commModeLabel}"`,
         `"${d.phone}"`,
         `"${d.walletName}"`,
+        `"${d.cashAccountName || '-'}"`,
         `"${d.note || '-'}"`,
       ].join(',');
     });
@@ -189,12 +202,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
           {/* Wallet Filter */}
           {wallets && setSelectedWalletFilter && (
-            <div className="flex items-center gap-1 sm:ml-auto">
-              <span className="text-xs font-bold text-slate-600">Wallet:</span>
+            <div className="flex items-center gap-1">
+              <Wallet className="w-3.5 h-3.5 text-indigo-600" />
               <select
                 value={selectedWalletFilter}
                 onChange={(e) => setSelectedWalletFilter(e.target.value)}
-                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
               >
                 <option value="all">Wallet အားလုံး</option>
                 {wallets.map((w) => (
@@ -206,12 +219,31 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
           )}
 
+          {/* Cash Account Filter */}
+          {cashAccounts && setSelectedCashFilter && (
+            <div className="flex items-center gap-1">
+              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+              <select
+                value={selectedCashFilter}
+                onChange={(e) => setSelectedCashFilter(e.target.value)}
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+              >
+                <option value="all">ငွေသားအကောင့် အားလုံး</option>
+                {cashAccounts.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Search Box */}
-          <div className="relative flex-1 min-w-[180px]">
+          <div className="relative flex-1 min-w-[160px]">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="ရှာဖွေရန် (အမည်၊ ဖုန်း၊ မှတ်ချက်)..."
+              placeholder="ရှာဖွေရန်..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-slate-300 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none"
@@ -271,14 +303,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 <th className="p-3 text-right">လက်ငင်းငွေ ပမာဏ (Ks)</th>
                 <th className="p-3 text-right">ကော်မရှင် (Ks)</th>
                 <th className="p-3">ဖုန်းနံပါတ်</th>
-                <th className="p-3">Wallet / အကောင့်</th>
+                <th className="p-3">Wallet အကောင့်</th>
+                <th className="p-3">ငွေသားအကောင့်</th>
                 <th className="p-3 text-center">လုပ်ဆောင်ချက်</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400 font-medium">
+                  <td colSpan={10} className="p-8 text-center text-slate-400 font-medium">
                     ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော ဒေတာ မရှိပါ။
                   </td>
                 </tr>
@@ -338,8 +371,13 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                       </td>
                       <td className="p-3 text-slate-600 font-mono">{item.phone}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold text-[11px]">
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
                           {item.walletName}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-700 whitespace-nowrap">
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[11px]">
+                          {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                         </span>
                       </td>
                       <td className="p-3 text-center whitespace-nowrap">
@@ -389,7 +427,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   <td className="p-3 text-right text-emerald-700">
                     +{formatKs(totalComm)}
                   </td>
-                  <td colSpan={3} className="p-3"></td>
+                  <td colSpan={4} className="p-3"></td>
                 </tr>
               </tfoot>
             )}

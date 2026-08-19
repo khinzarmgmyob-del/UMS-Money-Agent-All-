@@ -20,8 +20,9 @@ import {
   Sparkles,
   Store,
   Settings,
+  Coins,
 } from 'lucide-react';
-import { Transaction, WalletItem, BackupData, TransactionType, ShopProfile } from './types';
+import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs, formatLakh } from './utils/formatters';
 import { LicenseLockScreen } from './components/LicenseLockScreen';
@@ -32,7 +33,14 @@ import { ReportModal } from './components/ReportModal';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShopProfileModal } from './components/ShopProfileModal';
 
-// Initial Sample Data
+// Initial Sample Cash Accounts
+const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
+  { id: 1, name: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)', balance: 25000000, updatedDate: getTodayFormatted(), note: 'ကောင်တာ ၁' },
+  { id: 2, name: 'ကာတာငွေသေတ္တာ (Safe Box)', balance: 10000000, updatedDate: getTodayFormatted(), note: 'အနောက်ခန်း' },
+  { id: 3, name: 'အရန်ငွေသေတ္တာ (Backup Cash)', balance: 4400000, updatedDate: getTodayFormatted(), note: 'အရန်' },
+];
+
+// Initial Sample Wallets
 const INITIAL_WALLETS: WalletItem[] = [
   { id: 1, name: 'KPay', balance: 25000000, updatedDate: getTodayFormatted(), accountNumber: '09798001122' },
   { id: 2, name: 'WaveMoney', balance: 13800000, updatedDate: getTodayFormatted(), accountNumber: '09971234567' },
@@ -40,11 +48,11 @@ const INITIAL_WALLETS: WalletItem[] = [
 ];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: 1, date: getTodayFormatted(), time: '09:30', customerName: 'ဦးမြတ်စိုး', type: 'သွင်း', amount: 1500000, commission: 5000, phone: '09123456789', walletName: 'KPay', accountType: 'Wallet', note: 'မိဘထံလွှဲ' },
-  { id: 2, date: getTodayFormatted(), time: '11:15', customerName: 'ဒေါ်အေးအေး', type: 'ထုတ်', amount: 300000, commission: 3000, phone: '09987654321', walletName: 'WaveMoney', accountType: 'Wallet' },
-  { id: 3, date: getTodayFormatted(), time: '13:00', customerName: 'ကိုအောင်', type: 'သွင်း', amount: 2000000, commission: 5000, phone: '09450001122', walletName: 'CB Pay', accountType: 'Wallet' },
-  { id: 4, date: getTodayFormatted(), time: '14:20', customerName: 'ဦးထွန်း', type: 'ထုတ်', amount: 400000, commission: 2000, phone: '09223344556', walletName: 'Main Cash Box', accountType: 'Cash' },
-  { id: 5, date: '2026-08-18', time: '16:45', customerName: 'မနန်း', type: 'ထုတ်', amount: 500000, commission: 4000, phone: '09771122334', walletName: 'KPay', accountType: 'Wallet' },
+  { id: 1, date: getTodayFormatted(), time: '09:30', customerName: 'ဦးမြတ်စိုး', type: 'သွင်း', amount: 1500000, commission: 5000, phone: '09123456789', walletName: 'KPay', cashAccountName: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)', note: 'မိဘထံလွှဲ' },
+  { id: 2, date: getTodayFormatted(), time: '11:15', customerName: 'ဒေါ်အေးအေး', type: 'ထုတ်', amount: 300000, commission: 3000, commissionMode: 'deduct', netPayout: 297000, phone: '09987654321', walletName: 'WaveMoney', cashAccountName: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)' },
+  { id: 3, date: getTodayFormatted(), time: '13:00', customerName: 'ကိုအောင်', type: 'သွင်း', amount: 2000000, commission: 5000, phone: '09450001122', walletName: 'CB Pay', cashAccountName: 'ကာတာငွေသေတ္တာ (Safe Box)' },
+  { id: 4, date: getTodayFormatted(), time: '14:20', customerName: 'ဦးထွန်း', type: 'ထုတ်', amount: 400000, commission: 2000, commissionMode: 'separate', netPayout: 400000, phone: '09223344556', walletName: 'KPay', cashAccountName: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)' },
+  { id: 5, date: '2026-08-18', time: '16:45', customerName: 'မနန်း', type: 'ထုတ်', amount: 500000, commission: 4000, commissionMode: 'deduct', netPayout: 496000, phone: '09771122334', walletName: 'KPay', cashAccountName: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)' },
 ];
 
 export default function App() {
@@ -67,21 +75,34 @@ export default function App() {
     return { shopName: 'Money Agent POS', address: '', phone: '' };
   });
 
-  // Core Data States with localStorage Persistence
-  const [cashBalance, setCashBalance] = useState<number>(() => {
-    const saved = localStorage.getItem('app_cash_balance');
-    return saved !== null ? JSON.parse(saved) : 39400000;
+  // Cash Accounts State (Multiple Cash Drawers / Boxes)
+  const [cashAccounts, setCashAccounts] = useState<CashAccountItem[]>(() => {
+    const saved = localStorage.getItem('app_cash_accounts');
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return INITIAL_CASH_ACCOUNTS;
+      }
+    }
+    // Fallback migration if single cash balance was stored previously
+    const legacyCash = localStorage.getItem('app_cash_balance');
+    if (legacyCash !== null) {
+      const parsedVal = JSON.parse(legacyCash);
+      return [
+        { id: 1, name: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)', balance: parsedVal, updatedDate: todayStr, note: 'ကောင်တာ ၁' },
+      ];
+    }
+    return INITIAL_CASH_ACCOUNTS;
   });
 
-  const [cashUpdatedDate, setCashUpdatedDate] = useState<string>(() => {
-    return localStorage.getItem('app_cash_updated_date') || todayStr;
-  });
-
+  // Wallets State
   const [wallets, setWallets] = useState<WalletItem[]>(() => {
     const saved = localStorage.getItem('app_wallets');
     return saved !== null ? JSON.parse(saved) : INITIAL_WALLETS;
   });
 
+  // Transactions State
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('app_transactions');
     return saved !== null ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
@@ -105,6 +126,7 @@ export default function App() {
   // Filter States
   const [selectedReportDate, setSelectedReportDate] = useState<string>(todayStr);
   const [selectedWalletFilter, setSelectedWalletFilter] = useState<string>('all');
+  const [selectedCashFilter, setSelectedCashFilter] = useState<string>('all');
   const [recentSearchQuery, setRecentSearchQuery] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,15 +146,15 @@ export default function App() {
 
   // Save to localStorage on state changes
   useEffect(() => {
-    localStorage.setItem('app_cash_balance', JSON.stringify(cashBalance));
-    localStorage.setItem('app_cash_updated_date', cashUpdatedDate);
+    localStorage.setItem('app_cash_accounts', JSON.stringify(cashAccounts));
     localStorage.setItem('app_wallets', JSON.stringify(wallets));
     localStorage.setItem('app_transactions', JSON.stringify(transactions));
-  }, [cashBalance, cashUpdatedDate, wallets, transactions]);
+  }, [cashAccounts, wallets, transactions]);
 
   // Aggregate Calculations
+  const totalCashBalance = cashAccounts.reduce((sum, c) => sum + c.balance, 0);
   const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
-  const totalCapital = cashBalance + totalWalletBalance;
+  const totalCapital = totalCashBalance + totalWalletBalance;
 
   // Helper for actual cash amount
   const getActualCash = (item: Transaction): number => {
@@ -155,19 +177,19 @@ export default function App() {
     .reduce((sum, item) => sum + getActualCash(item), 0);
 
   // Filter Transactions for Reports
-  const filterList = (accountTypeFilter?: 'Wallet' | 'Cash') => {
+  const filterList = (filterType?: 'Wallet' | 'Cash') => {
     return transactions.filter((t) => {
       const matchDate = selectedReportDate === 'ALL' ? true : t.date === selectedReportDate;
-      const matchType = accountTypeFilter ? t.accountType === accountTypeFilter : true;
       const matchWallet =
-        accountTypeFilter === 'Wallet' && selectedWalletFilter !== 'all'
-          ? t.walletName === selectedWalletFilter
-          : true;
-      return matchDate && matchType && matchWallet;
+        selectedWalletFilter !== 'all' ? t.walletName === selectedWalletFilter : true;
+      const matchCash =
+        selectedCashFilter !== 'all' ? t.cashAccountName === selectedCashFilter : true;
+
+      return matchDate && matchWallet && matchCash;
     });
   };
 
-  // Transaction Save Handler (With isolated Wallet vs Cash Drawer updates)
+  // Transaction Save Handler with Double-Entry Balance Updates
   const handleSaveTransaction = (
     txData: Omit<Transaction, 'id'>,
     updateBalances: boolean
@@ -181,34 +203,38 @@ export default function App() {
 
     if (updateBalances) {
       const isCashOut = txData.type === 'ထုတ်';
-      const isCashBox = txData.walletName === 'Main Cash Box' || txData.accountType === 'Cash';
 
-      if (isCashBox) {
-        // Physical cash drawer transaction
-        const actualCashDelta = isCashOut
-          ? -(txData.netPayout ?? (txData.commissionMode === 'deduct' ? txData.amount - txData.commission : txData.amount))
-          : txData.amount + txData.commission;
+      // 1. Update Selected Wallet:
+      // Cash In: Agent transfers e-money to customer -> Wallet DECREASES
+      // Cash Out: Customer transfers e-money to agent -> Wallet INCREASES
+      setWallets((prevWallets) =>
+        prevWallets.map((w) => {
+          if (w.name === txData.walletName) {
+            const newBal = isCashOut
+              ? w.balance + txData.amount
+              : w.balance - txData.amount;
+            return { ...w, balance: newBal, updatedDate: txData.date };
+          }
+          return w;
+        })
+      );
 
-        setCashBalance((prev) => prev + actualCashDelta);
-        setCashUpdatedDate(txData.date);
-      } else {
-        // Mobile Wallet transaction
-        // Update ONLY that specific Wallet's balance:
-        // Cash In (ငွေသွင်း): Agent transfers e-money to customer -> wallet decreases
-        // Cash Out (ငွေထုတ်): Customer transfers e-money to agent -> wallet increases
-        setWallets((prevWallets) =>
-          prevWallets.map((w) => {
-            if (w.name === txData.walletName) {
-              const newBal = isCashOut
-                ? w.balance + txData.amount
-                : w.balance - txData.amount;
-              return { ...w, balance: newBal, updatedDate: txData.date };
-            }
-            return w;
-          })
-        );
-        // Note: As requested, physical Cash in hand is NOT touched for e-wallet transactions!
-      }
+      // 2. Update Selected Cash Account:
+      // Cash In: Agent receives cash + commission from customer -> Cash Account INCREASES
+      // Cash Out: Agent gives cash to customer -> Cash Account DECREASES
+      // (If deduct: - (amount - commission); If separate: - amount + commission)
+      const cashDelta = isCashOut
+        ? -(txData.netPayout ?? (txData.commissionMode === 'deduct' ? txData.amount - txData.commission : txData.amount))
+        : txData.amount + txData.commission;
+
+      setCashAccounts((prevAccounts) =>
+        prevAccounts.map((c) => {
+          if (c.name === txData.cashAccountName) {
+            return { ...c, balance: c.balance + cashDelta, updatedDate: txData.date };
+          }
+          return c;
+        })
+      );
     }
 
     setShowTransactionModal(false);
@@ -217,6 +243,23 @@ export default function App() {
   // Delete Transaction Handler
   const handleDeleteTransaction = (id: number) => {
     setTransactions(transactions.filter((t) => t.id !== id));
+  };
+
+  // Cash Account Management Handlers
+  const handleAddCashAccount = (newAcc: Omit<CashAccountItem, 'id'>) => {
+    const item: CashAccountItem = {
+      ...newAcc,
+      id: Date.now(),
+    };
+    setCashAccounts([...cashAccounts, item]);
+  };
+
+  const handleUpdateCashAccount = (updated: CashAccountItem) => {
+    setCashAccounts(cashAccounts.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const handleDeleteCashAccount = (id: number) => {
+    setCashAccounts(cashAccounts.filter((c) => c.id !== id));
   };
 
   // Wallet Management Handlers
@@ -236,13 +279,6 @@ export default function App() {
     setWallets(wallets.filter((w) => w.id !== id));
   };
 
-  // Cash In Hand Save Handler
-  const handleSaveCash = (newAmount: number, date: string) => {
-    setCashBalance(newAmount);
-    setCashUpdatedDate(date);
-    setShowCashEditModal(false);
-  };
-
   // Shop Profile Save Handler
   const handleSaveShopProfile = (newProfile: ShopProfile) => {
     setShopProfile(newProfile);
@@ -252,13 +288,13 @@ export default function App() {
   // Backup & Restore Handlers
   const handleBackup = () => {
     const backupData: BackupData = {
-      cashBalance,
-      cashUpdatedDate,
+      cashAccounts,
+      cashBalance: totalCashBalance,
       wallets,
       transactions,
       shopProfile,
       exportedAt: new Date().toISOString(),
-      version: '1.0.0',
+      version: '2.0.0',
     };
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
     const downloadAnchor = document.createElement('a');
@@ -282,9 +318,14 @@ export default function App() {
       fileReader.onload = (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string) as BackupData;
-          if (parsed && typeof parsed.cashBalance === 'number' && Array.isArray(parsed.wallets)) {
-            setCashBalance(parsed.cashBalance);
-            setCashUpdatedDate(parsed.cashUpdatedDate || todayStr);
+          if (parsed && Array.isArray(parsed.wallets)) {
+            if (Array.isArray(parsed.cashAccounts)) {
+              setCashAccounts(parsed.cashAccounts);
+            } else if (typeof parsed.cashBalance === 'number') {
+              setCashAccounts([
+                { id: 1, name: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)', balance: parsed.cashBalance, updatedDate: todayStr },
+              ]);
+            }
             setWallets(parsed.wallets);
             setTransactions(parsed.transactions || []);
             if (parsed.shopProfile) {
@@ -310,6 +351,7 @@ export default function App() {
       t.customerName.toLowerCase().includes(q) ||
       t.phone.toLowerCase().includes(q) ||
       t.walletName.toLowerCase().includes(q) ||
+      (t.cashAccountName && t.cashAccountName.toLowerCase().includes(q)) ||
       (t.note && t.note.toLowerCase().includes(q))
     );
   });
@@ -377,6 +419,8 @@ export default function App() {
             <button
               onClick={() => {
                 setSelectedReportDate(todayStr);
+                setSelectedWalletFilter('all');
+                setSelectedCashFilter('all');
                 setShowAllTransactionsModal(true);
               }}
               className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
@@ -389,41 +433,42 @@ export default function App() {
 
         {/* TOP 4 STATS CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* CARD 1: CASH */}
+          {/* CARD 1: CASH ACCOUNTS TOTAL */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative group">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                  💵 လက်ငင်းငွေသား (Cash)
+                  💵 လက်ငင်းငွေသားပေါင်း (Cash)
                 </span>
                 <button
                   onClick={() => setShowCashEditModal(true)}
-                  className="p-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-xs transition-colors cursor-pointer"
-                  title="လက်ငင်းငွေသား ပြင်ဆင်ရန်"
+                  className="p-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 rounded-md text-xs transition-colors cursor-pointer"
+                  title="လက်ငင်းငွေသား အကောင့်များ စီမံရန်"
                 >
-                  <Edit className="w-3.5 h-3.5" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
               <button
                 onClick={() => {
                   setSelectedReportDate(todayStr);
+                  setSelectedCashFilter('all');
                   setShowCashReport(true);
                 }}
-                className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
               >
                 📊 အသေးစိတ်
               </button>
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {formatKs(cashBalance)}
+              {formatKs(totalCashBalance)}
             </h2>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold text-slate-600">{formatLakh(cashBalance)}</span>
-              <span>ပြင်ဆင်ရက်: {cashUpdatedDate}</span>
+              <span className="font-semibold text-slate-600">{formatLakh(totalCashBalance)}</span>
+              <span>{cashAccounts.length} အကောင့်</span>
             </div>
           </div>
 
-          {/* CARD 2: WALLETS */}
+          {/* CARD 2: WALLETS TOTAL */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
@@ -441,9 +486,10 @@ export default function App() {
               <button
                 onClick={() => {
                   setSelectedReportDate(todayStr);
+                  setSelectedWalletFilter('all');
                   setShowWalletReport(true);
                 }}
-                className="text-xs text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
               >
                 📊 အသေးစိတ်
               </button>
@@ -457,7 +503,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* CARD 3: TOTAL CAPITAL */}
+          {/* CARD 3: TOTAL CAPITAL (CASH + WALLETS) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-600">🌐 စုစုပေါင်း မတည်ငွေ</span>
@@ -511,7 +557,9 @@ export default function App() {
               </div>
               <div>
                 <div className="text-lg font-black tracking-wide">ငွေသွင်း မှတ်တမ်းတင်မည် (Cash In)</div>
-                <div className="text-xs text-emerald-100">ဖောက်သည်ထံမှ ငွေလက်ခံ၍ Wallet မှ လွှဲပေးခြင်း</div>
+                <div className="text-xs text-emerald-100">
+                  ဖောက်သည်ထံမှ ငွေသားလက်ခံ (+) &amp; မိမိ Wallet မှ လွှဲပေးခြင်း (-)
+                </div>
               </div>
             </div>
             <div className="text-right hidden sm:block">
@@ -533,7 +581,9 @@ export default function App() {
               </div>
               <div>
                 <div className="text-lg font-black tracking-wide">ငွေထုတ် မှတ်တမ်းတင်မည် (Cash Out)</div>
-                <div className="text-xs text-red-100">ဖောက်သည်ထံမှ Wallet ဝင်ငွေယူ၍ ငွေသားထုတ်ပေးခြင်း</div>
+                <div className="text-xs text-red-100">
+                  မိမိ Wallet သို့ ငွေလွှဲလက်ခံ (+) &amp; ဖောက်သည်ထံ ငွေသားထုတ်ပေးခြင်း (-)
+                </div>
               </div>
             </div>
             <div className="text-right hidden sm:block">
@@ -543,49 +593,100 @@ export default function App() {
           </button>
         </div>
 
-        {/* WALLET BALANCES SECTION */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Wallet className="w-4 h-4 text-indigo-600" />
-              <h3 className="text-sm font-bold text-slate-800">
-                သီးခြား Wallet / Account အကောင့် လက်ကျန်များ
-              </h3>
+        {/* 2 ACCOUNTS SECTIONS: 1) CASH DRAWERS & 2) WALLETS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* SECTION 1: CASH ACCOUNTS */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Banknote className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-sm font-bold text-slate-800">
+                  💵 လက်ငင်းငွေသား အကောင့်များ ({cashAccounts.length})
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCashEditModal(true)}
+                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                ငွေသားအကောင့် စီမံရန်
+              </button>
             </div>
-            <button
-              onClick={() => setShowWalletModal(true)}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
-            >
-              <Edit className="w-3.5 h-3.5" />
-              အကောင့်များ စီမံရန်
-            </button>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {cashAccounts.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedCashFilter(c.name);
+                    setSelectedReportDate('ALL');
+                    setShowCashReport(true);
+                  }}
+                  className="p-3.5 bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-200/70 hover:border-emerald-300 rounded-xl transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900 truncate">{c.name}</span>
+                    {c.note && (
+                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-700">
+                        {c.note}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-base font-black text-emerald-700">
+                    {formatKs(c.balance)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {(c.balance / 100000).toFixed(1)} သိန်း • ရက်စွဲ: {c.updatedDate}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {wallets.map((w) => (
-              <div
-                key={w.id}
-                onClick={() => {
-                  setSelectedWalletFilter(w.name);
-                  setSelectedReportDate('ALL');
-                  setShowWalletReport(true);
-                }}
-                className="p-4 bg-slate-50 hover:bg-indigo-50/40 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all cursor-pointer"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-bold text-sm text-slate-900">{w.name}</span>
-                  <span className="text-[11px] text-slate-400 font-mono">
-                    {w.accountNumber || ''}
-                  </span>
-                </div>
-                <div className="text-base font-bold text-indigo-600">
-                  {formatKs(w.balance)}
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  {(w.balance / 100000).toFixed(1)} သိန်း • ရက်စွဲ: {w.updatedDate}
-                </div>
+          {/* SECTION 2: WALLETS */}
+          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-800">
+                  🏦 Wallet / Bank အကောင့်များ ({wallets.length})
+                </h3>
               </div>
-            ))}
+              <button
+                onClick={() => setShowWalletModal(true)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Edit className="w-3.5 h-3.5" />
+                Wallet များ စီမံရန်
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {wallets.map((w) => (
+                <div
+                  key={w.id}
+                  onClick={() => {
+                    setSelectedWalletFilter(w.name);
+                    setSelectedReportDate('ALL');
+                    setShowWalletReport(true);
+                  }}
+                  className="p-3.5 bg-indigo-50/40 hover:bg-indigo-50 border border-indigo-200/70 hover:border-indigo-300 rounded-xl transition-all cursor-pointer"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs text-slate-900">{w.name}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {w.accountNumber || ''}
+                    </span>
+                  </div>
+                  <div className="text-base font-black text-indigo-700">
+                    {formatKs(w.balance)}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {(w.balance / 100000).toFixed(1)} သိန်း • ရက်စွဲ: {w.updatedDate}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -613,6 +714,8 @@ export default function App() {
               <button
                 onClick={() => {
                   setSelectedReportDate(todayStr);
+                  setSelectedWalletFilter('all');
+                  setSelectedCashFilter('all');
                   setShowAllTransactionsModal(true);
                 }}
                 className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors cursor-pointer"
@@ -633,7 +736,8 @@ export default function App() {
                   <th className="p-3 text-right">လက်ငင်းငွေ ပမာဏ (Ks)</th>
                   <th className="p-3 text-right">ကော်မရှင် (Ks)</th>
                   <th className="p-3">ဖုန်းနံပါတ်</th>
-                  <th className="p-3">Wallet/Account</th>
+                  <th className="p-3">Wallet အကောင့်</th>
+                  <th className="p-3">ငွေသားအကောင့်</th>
                   <th className="p-3 text-center">ပြေစာ</th>
                 </tr>
               </thead>
@@ -691,8 +795,13 @@ export default function App() {
                       </td>
                       <td className="p-3 text-slate-600 font-mono">{item.phone}</td>
                       <td className="p-3 text-slate-700 whitespace-nowrap">
-                        <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-semibold text-[11px]">
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
                           {item.walletName}
+                        </span>
+                      </td>
+                      <td className="p-3 text-slate-700 whitespace-nowrap">
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[11px]">
+                          {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                         </span>
                       </td>
                       <td className="p-3 text-center whitespace-nowrap">
@@ -751,12 +860,12 @@ export default function App() {
 
       {/* ================= MODALS ================= */}
 
-      {/* 1. Transaction Modal (Cash In / Cash Out) */}
+      {/* 1. Transaction Modal (Cash In / Cash Out with Wallet & Cash Account Selection) */}
       {showTransactionModal && (
         <TransactionModal
           initialType={transactionModalType}
           wallets={wallets}
-          cashBalance={cashBalance}
+          cashAccounts={cashAccounts}
           onClose={() => setShowTransactionModal(false)}
           onSave={handleSaveTransaction}
         />
@@ -773,13 +882,14 @@ export default function App() {
         />
       )}
 
-      {/* 3. Cash In Hand Edit Modal */}
+      {/* 3. Cash In Hand / Drawers Management Modal */}
       {showCashEditModal && (
         <CashEditModal
-          currentCash={cashBalance}
-          currentDate={cashUpdatedDate}
+          cashAccounts={cashAccounts}
           onClose={() => setShowCashEditModal(false)}
-          onSave={handleSaveCash}
+          onAddAccount={handleAddCashAccount}
+          onUpdateAccount={handleUpdateCashAccount}
+          onDeleteAccount={handleDeleteCashAccount}
         />
       )}
 
@@ -803,6 +913,9 @@ export default function App() {
           wallets={wallets}
           selectedWalletFilter={selectedWalletFilter}
           setSelectedWalletFilter={setSelectedWalletFilter}
+          cashAccounts={cashAccounts}
+          selectedCashFilter={selectedCashFilter}
+          setSelectedCashFilter={setSelectedCashFilter}
           data={filterList('Wallet')}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
@@ -817,6 +930,12 @@ export default function App() {
           onClose={() => setShowCashReport(false)}
           selectedReportDate={selectedReportDate}
           setSelectedReportDate={setSelectedReportDate}
+          wallets={wallets}
+          selectedWalletFilter={selectedWalletFilter}
+          setSelectedWalletFilter={setSelectedWalletFilter}
+          cashAccounts={cashAccounts}
+          selectedCashFilter={selectedCashFilter}
+          setSelectedCashFilter={setSelectedCashFilter}
           data={filterList('Cash')}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
@@ -831,6 +950,12 @@ export default function App() {
           onClose={() => setShowCommissionReport(false)}
           selectedReportDate={selectedReportDate}
           setSelectedReportDate={setSelectedReportDate}
+          wallets={wallets}
+          selectedWalletFilter={selectedWalletFilter}
+          setSelectedWalletFilter={setSelectedWalletFilter}
+          cashAccounts={cashAccounts}
+          selectedCashFilter={selectedCashFilter}
+          setSelectedCashFilter={setSelectedCashFilter}
           data={filterList()}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
@@ -848,6 +973,9 @@ export default function App() {
           wallets={wallets}
           selectedWalletFilter={selectedWalletFilter}
           setSelectedWalletFilter={setSelectedWalletFilter}
+          cashAccounts={cashAccounts}
+          selectedCashFilter={selectedCashFilter}
+          setSelectedCashFilter={setSelectedCashFilter}
           data={filterList()}
           onDeleteTransaction={handleDeleteTransaction}
           onViewReceipt={(tx) => setActiveReceipt(tx)}
