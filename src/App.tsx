@@ -18,8 +18,10 @@ import {
   RotateCcw,
   Printer,
   Sparkles,
+  Store,
+  Settings,
 } from 'lucide-react';
-import { Transaction, WalletItem, BackupData, TransactionType } from './types';
+import { Transaction, WalletItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs, formatLakh } from './utils/formatters';
 import { LicenseLockScreen } from './components/LicenseLockScreen';
@@ -28,6 +30,7 @@ import { WalletModal } from './components/WalletModal';
 import { CashEditModal } from './components/CashEditModal';
 import { ReportModal } from './components/ReportModal';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
+import { ShopProfileModal } from './components/ShopProfileModal';
 
 // Initial Sample Data
 const INITIAL_WALLETS: WalletItem[] = [
@@ -50,6 +53,19 @@ export default function App() {
   // License State
   const [deviceId, setDeviceId] = useState<string>('');
   const [isActivated, setIsActivated] = useState<boolean>(false);
+
+  // Shop Profile State
+  const [shopProfile, setShopProfile] = useState<ShopProfile>(() => {
+    const saved = localStorage.getItem('app_shop_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { shopName: 'Money Agent POS', address: '', phone: '' };
+      }
+    }
+    return { shopName: 'Money Agent POS', address: '', phone: '' };
+  });
 
   // Core Data States with localStorage Persistence
   const [cashBalance, setCashBalance] = useState<number>(() => {
@@ -77,6 +93,7 @@ export default function App() {
 
   const [showWalletModal, setShowWalletModal] = useState<boolean>(false);
   const [showCashEditModal, setShowCashEditModal] = useState<boolean>(false);
+  const [showShopProfileModal, setShowShopProfileModal] = useState<boolean>(false);
 
   const [showCommissionReport, setShowCommissionReport] = useState<boolean>(false);
   const [showWalletReport, setShowWalletReport] = useState<boolean>(false);
@@ -100,10 +117,12 @@ export default function App() {
     const savedKey = localStorage.getItem('app_activation_key');
     if (savedKey && verifyActivationKey(id, savedKey)) {
       setIsActivated(true);
+    } else {
+      setIsActivated(false);
     }
   }, []);
 
-  // Save to LocalStorage
+  // Save to localStorage on state changes
   useEffect(() => {
     localStorage.setItem('app_cash_balance', JSON.stringify(cashBalance));
     localStorage.setItem('app_cash_updated_date', cashUpdatedDate);
@@ -111,11 +130,11 @@ export default function App() {
     localStorage.setItem('app_transactions', JSON.stringify(transactions));
   }, [cashBalance, cashUpdatedDate, wallets, transactions]);
 
-  // Derived Calculations
+  // Aggregate Calculations
   const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
   const totalCapital = cashBalance + totalWalletBalance;
 
-  // Today Statistics
+  // Helper for actual cash amount
   const getActualCash = (item: Transaction): number => {
     if (item.type === 'ထုတ်') {
       if (item.netPayout !== undefined) return item.netPayout;
@@ -125,6 +144,7 @@ export default function App() {
     return item.amount;
   };
 
+  // Today Statistics
   const todayTransactions = transactions.filter((t) => t.date === todayStr);
   const todayCommission = todayTransactions.reduce((sum, item) => sum + item.commission, 0);
   const todayIn = todayTransactions
@@ -147,7 +167,7 @@ export default function App() {
     });
   };
 
-  // Transaction Save Handler
+  // Transaction Save Handler (With isolated Wallet vs Cash Drawer updates)
   const handleSaveTransaction = (
     txData: Omit<Transaction, 'id'>,
     updateBalances: boolean
@@ -161,18 +181,21 @@ export default function App() {
 
     if (updateBalances) {
       const isCashOut = txData.type === 'ထုတ်';
-      const isCashBox = txData.walletName === 'Main Cash Box';
+      const isCashBox = txData.walletName === 'Main Cash Box' || txData.accountType === 'Cash';
 
       if (isCashBox) {
-        // Physical cash transaction
-        setCashBalance((prev) =>
-          isCashOut
-            ? prev - txData.amount + txData.commission
-            : prev + txData.amount + txData.commission
-        );
+        // Physical cash drawer transaction
+        const actualCashDelta = isCashOut
+          ? -(txData.netPayout ?? (txData.commissionMode === 'deduct' ? txData.amount - txData.commission : txData.amount))
+          : txData.amount + txData.commission;
+
+        setCashBalance((prev) => prev + actualCashDelta);
         setCashUpdatedDate(txData.date);
       } else {
-        // Mobile Wallet transaction (Agent updates both Wallet balance & Physical cash box)
+        // Mobile Wallet transaction
+        // Update ONLY that specific Wallet's balance:
+        // Cash In (ငွေသွင်း): Agent transfers e-money to customer -> wallet decreases
+        // Cash Out (ငွေထုတ်): Customer transfers e-money to agent -> wallet increases
         setWallets((prevWallets) =>
           prevWallets.map((w) => {
             if (w.name === txData.walletName) {
@@ -184,16 +207,7 @@ export default function App() {
             return w;
           })
         );
-
-        // Adjust Cash Drawer:
-        // Cash In: Customer gives cash + commission -> Cash increases
-        // Cash Out: Agent gives customer cash - commission -> Cash decreases
-        setCashBalance((prev) =>
-          isCashOut
-            ? prev - txData.amount + txData.commission
-            : prev + txData.amount + txData.commission
-        );
-        setCashUpdatedDate(txData.date);
+        // Note: As requested, physical Cash in hand is NOT touched for e-wallet transactions!
       }
     }
 
@@ -229,6 +243,12 @@ export default function App() {
     setShowCashEditModal(false);
   };
 
+  // Shop Profile Save Handler
+  const handleSaveShopProfile = (newProfile: ShopProfile) => {
+    setShopProfile(newProfile);
+    localStorage.setItem('app_shop_profile', JSON.stringify(newProfile));
+  };
+
   // Backup & Restore Handlers
   const handleBackup = () => {
     const backupData: BackupData = {
@@ -236,6 +256,7 @@ export default function App() {
       cashUpdatedDate,
       wallets,
       transactions,
+      shopProfile,
       exportedAt: new Date().toISOString(),
       version: '1.0.0',
     };
@@ -260,43 +281,56 @@ export default function App() {
       fileReader.readAsText(e.target.files[0], 'UTF-8');
       fileReader.onload = (event) => {
         try {
-          const parsedData = JSON.parse(event.target?.result as string);
-          if (parsedData.transactions && Array.isArray(parsedData.transactions)) {
-            if (parsedData.cashBalance !== undefined) setCashBalance(parsedData.cashBalance);
-            if (parsedData.cashUpdatedDate) setCashUpdatedDate(parsedData.cashUpdatedDate);
-            if (parsedData.wallets && Array.isArray(parsedData.wallets)) setWallets(parsedData.wallets);
-            setTransactions(parsedData.transactions);
-            alert('✅ Backup Data ပြန်လည် ထည့်သွင်းပြီးပါပြီ။');
+          const parsed = JSON.parse(event.target?.result as string) as BackupData;
+          if (parsed && typeof parsed.cashBalance === 'number' && Array.isArray(parsed.wallets)) {
+            setCashBalance(parsed.cashBalance);
+            setCashUpdatedDate(parsed.cashUpdatedDate || todayStr);
+            setWallets(parsed.wallets);
+            setTransactions(parsed.transactions || []);
+            if (parsed.shopProfile) {
+              setShopProfile(parsed.shopProfile);
+              localStorage.setItem('app_shop_profile', JSON.stringify(parsed.shopProfile));
+            }
+            alert('Data Restore အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။');
           } else {
-            alert('❌ Backup Data ပုံစံ မမှန်ကန်ပါ။');
+            alert('ဖိုင်ဖော်မတ် မမှန်ကန်ပါ။ မှန်ကန်သော Backup JSON ဖိုင်ကိုသာ ရွေးချယ်ပါ။');
           }
         } catch (err) {
-          alert('❌ Backup File ဖတ်ရှု၍ မရပါ (ဖိုင်မှားယွင်းနေပါသည်)။');
+          alert('ဖိုင်ဖတ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်။');
         }
       };
     }
   };
 
-  // If not activated, render the License Lock Screen
+  // Filter recent transactions
+  const recentTransactions = transactions.filter((t) => {
+    if (!recentSearchQuery.trim()) return true;
+    const q = recentSearchQuery.toLowerCase();
+    return (
+      t.customerName.toLowerCase().includes(q) ||
+      t.phone.toLowerCase().includes(q) ||
+      t.walletName.toLowerCase().includes(q) ||
+      (t.note && t.note.toLowerCase().includes(q))
+    );
+  });
+
+  // If Not Activated, Show License Screen
   if (!isActivated) {
     return (
       <LicenseLockScreen
         deviceId={deviceId}
-        onActivated={() => setIsActivated(true)}
+        onActivated={() => {
+          setIsActivated(true);
+          const savedProfile = localStorage.getItem('app_shop_profile');
+          if (savedProfile) {
+            try {
+              setShopProfile(JSON.parse(savedProfile));
+            } catch (e) {}
+          }
+        }}
       />
     );
   }
-
-  // Filtered recent transactions on main screen
-  const recentTransactions = transactions.filter((t) => {
-    if (!recentSearchQuery.trim()) return true;
-    const query = recentSearchQuery.toLowerCase();
-    return (
-      t.customerName.toLowerCase().includes(query) ||
-      t.phone.toLowerCase().includes(query) ||
-      t.walletName.toLowerCase().includes(query)
-    );
-  });
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 antialiased p-3 sm:p-6 lg:p-8">
@@ -304,23 +338,40 @@ export default function App() {
         {/* TOP HEADER */}
         <header className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/20">
-              <Banknote className="w-6 h-6" />
-            </div>
+            {shopProfile.logoUrl ? (
+              <div className="w-12 h-12 rounded-2xl border border-slate-200 bg-white p-1 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+                <img src={shopProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+              </div>
+            ) : (
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+                <Banknote className="w-6 h-6" />
+              </div>
+            )}
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                📱 Money Agent POS
+                {shopProfile.shopName || '📱 Money Agent POS'}
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                ငွေလွှဲ / ငွေထုတ် စာရင်းကိုင်နှင့် လက်ကျန်ငွေ စီမံမှုစနစ်
+                {shopProfile.address
+                  ? `${shopProfile.address} • ${shopProfile.phone || ''}`
+                  : 'ငွေလွှဲ / ငွေထုတ် စာရင်းကိုင်နှင့် လက်ကျန်ငွေ စီမံမှုစနစ်'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-full text-xs font-bold">
+            <button
+              onClick={() => setShowShopProfileModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              title="ဆိုင် / လုပ်ငန်း Profile ပြင်ဆင်ရန်"
+            >
+              <Store className="w-3.5 h-3.5 text-indigo-600" />
+              <span>ဆိုင် Profile</span>
+            </button>
+
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold">
               <ShieldCheck className="w-4 h-4" />
-              <span>Activated ({deviceId})</span>
+              <span>Activated</span>
             </div>
 
             <button
@@ -328,7 +379,7 @@ export default function App() {
                 setSelectedReportDate(todayStr);
                 setShowAllTransactionsModal(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
               စာရင်းချုပ် အားလုံး
@@ -368,7 +419,7 @@ export default function App() {
             </h2>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
               <span className="font-semibold text-slate-600">{formatLakh(cashBalance)}</span>
-              <span>ပြင်ဆင်က်: {cashUpdatedDate}</span>
+              <span>ပြင်ဆင်ရက်: {cashUpdatedDate}</span>
             </div>
           </div>
 
@@ -452,16 +503,20 @@ export default function App() {
               setTransactionModalType('သွင်း');
               setShowTransactionModal(true);
             }}
-            className="p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 active:scale-[0.99] text-white rounded-2xl font-bold shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-3 cursor-pointer group"
+            className="group p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <ArrowDownRight className="w-6 h-6 text-white" />
-            </div>
-            <div className="text-left">
-              <div className="text-lg">+ ငွေသွင်း (Cash In)</div>
-              <div className="text-xs font-normal text-emerald-100">
-                ဖောက်သည်ထံမှ ငွေလက်ခံပြီး လွှဲပေးခြင်း
+            <div className="flex items-center gap-4 text-left">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform">
+                <ArrowDownRight className="w-7 h-7" />
               </div>
+              <div>
+                <div className="text-lg font-black tracking-wide">ငွေသွင်း မှတ်တမ်းတင်မည် (Cash In)</div>
+                <div className="text-xs text-emerald-100">ဖောက်သည်ထံမှ ငွေလက်ခံ၍ Wallet မှ လွှဲပေးခြင်း</div>
+              </div>
+            </div>
+            <div className="text-right hidden sm:block">
+              <div className="text-xs font-semibold text-emerald-100">ယနေ့ ငွေသွင်း</div>
+              <div className="text-base font-black">+{formatKs(todayIn)}</div>
             </div>
           </button>
 
@@ -470,39 +525,43 @@ export default function App() {
               setTransactionModalType('ထုတ်');
               setShowTransactionModal(true);
             }}
-            className="p-5 bg-gradient-to-r from-red-600 to-rose-500 hover:from-red-700 hover:to-rose-600 active:scale-[0.99] text-white rounded-2xl font-bold shadow-lg shadow-red-600/20 transition-all flex items-center justify-center gap-3 cursor-pointer group"
+            className="group p-5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <ArrowUpRight className="w-6 h-6 text-white" />
-            </div>
-            <div className="text-left">
-              <div className="text-lg">- ငွေထုတ် (Cash Out)</div>
-              <div className="text-xs font-normal text-rose-100">
-                ဖောက်သည်ထံမှ Wallet လက်ခံပြီး ငွေသားထုတ်ပေးခြင်း
+            <div className="flex items-center gap-4 text-left">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform">
+                <ArrowUpRight className="w-7 h-7" />
               </div>
+              <div>
+                <div className="text-lg font-black tracking-wide">ငွေထုတ် မှတ်တမ်းတင်မည် (Cash Out)</div>
+                <div className="text-xs text-red-100">ဖောက်သည်ထံမှ Wallet ဝင်ငွေယူ၍ ငွေသားထုတ်ပေးခြင်း</div>
+              </div>
+            </div>
+            <div className="text-right hidden sm:block">
+              <div className="text-xs font-semibold text-red-100">ယနေ့ ငွေထုတ်</div>
+              <div className="text-base font-black">-{formatKs(todayOut)}</div>
             </div>
           </button>
         </div>
 
-        {/* WALLET QUICK CARDS STRIP */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
+        {/* WALLET BALANCES SECTION */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Wallet className="w-4 h-4 text-indigo-600" />
               <h3 className="text-sm font-bold text-slate-800">
-                အသုံးပြုနေသော Wallet များ လက်ကျန်စာရင်း
+                သီးခြား Wallet / Account အကောင့် လက်ကျန်များ
               </h3>
             </div>
             <button
               onClick={() => setShowWalletModal(true)}
               className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" />
-              Wallet အသစ်/ပြင်ဆင်ရန်
+              <Edit className="w-3.5 h-3.5" />
+              အကောင့်များ စီမံရန်
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {wallets.map((w) => (
               <div
                 key={w.id}
@@ -724,7 +783,16 @@ export default function App() {
         />
       )}
 
-      {/* 4. Wallet Report Modal */}
+      {/* 4. Shop Profile Modal */}
+      {showShopProfileModal && (
+        <ShopProfileModal
+          initialProfile={shopProfile}
+          onSave={handleSaveShopProfile}
+          onClose={() => setShowShopProfileModal(false)}
+        />
+      )}
+
+      {/* 5. Wallet Report Modal */}
       {showWalletReport && (
         <ReportModal
           title="🏦 Wallet Transaction အသေးစိတ် Report"
@@ -741,7 +809,7 @@ export default function App() {
         />
       )}
 
-      {/* 5. Cash Report Modal */}
+      {/* 6. Cash Report Modal */}
       {showCashReport && (
         <ReportModal
           title="💵 လက်ငင်းငွေသား (Cash) Transaction Report"
@@ -755,7 +823,7 @@ export default function App() {
         />
       )}
 
-      {/* 6. Commission Report Modal */}
+      {/* 7. Commission Report Modal */}
       {showCommissionReport && (
         <ReportModal
           title="📈 ကော်မရှင်ဝင်ငွေ အသေးစိတ် Report"
@@ -769,7 +837,7 @@ export default function App() {
         />
       )}
 
-      {/* 7. All Transactions Modal */}
+      {/* 8. All Transactions Modal */}
       {showAllTransactionsModal && (
         <ReportModal
           title="📋 စာရင်းချုပ် အားလုံး (All Transactions Ledger)"
@@ -786,10 +854,11 @@ export default function App() {
         />
       )}
 
-      {/* 8. Voucher Receipt View */}
+      {/* 9. Voucher Receipt View */}
       {activeReceipt && (
         <TransactionReceiptModal
           transaction={activeReceipt}
+          shopProfile={shopProfile}
           onClose={() => setActiveReceipt(null)}
         />
       )}

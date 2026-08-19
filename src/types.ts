@@ -2,6 +2,13 @@ export type TransactionType = 'သွင်း' | 'ထုတ်';
 export type AccountCategory = 'Cash' | 'Wallet';
 export type CommissionMode = 'deduct' | 'separate';
 
+export interface ShopProfile {
+  shopName: string;
+  address: string;
+  phone: string;
+  logoUrl?: string;
+}
+
 export interface Transaction {
   id: number;
   date: string;
@@ -32,6 +39,7 @@ export interface BackupData {
   cashUpdatedDate: string;
   wallets: WalletItem[];
   transactions: Transaction[];
+  shopProfile?: ShopProfile;
   exportedAt: string;
   version?: string;
 }

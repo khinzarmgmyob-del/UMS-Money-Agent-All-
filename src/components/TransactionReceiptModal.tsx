@@ -1,18 +1,33 @@
 import React, { useState } from 'react';
-import { X, Printer, Copy, Check, FileCheck } from 'lucide-react';
-import { Transaction } from '../types';
+import { X, Printer, Copy, Check, FileCheck, Store, MapPin, Phone } from 'lucide-react';
+import { Transaction, ShopProfile } from '../types';
 import { formatKs } from '../utils/formatters';
 
 interface TransactionReceiptModalProps {
   transaction: Transaction;
+  shopProfile?: ShopProfile;
   onClose: () => void;
 }
 
 export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = ({
   transaction,
+  shopProfile: propProfile,
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+
+  // Get shop profile from prop or fallback to localStorage
+  const shopProfile: ShopProfile = propProfile || (() => {
+    const saved = localStorage.getItem('app_shop_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return { shopName: 'MONEY AGENT POS', address: '', phone: '' };
+      }
+    }
+    return { shopName: 'MONEY AGENT POS', address: '', phone: '' };
+  })();
 
   const isCashOut = transaction.type === 'ထုတ်';
   const isDeducted = transaction.commissionMode === 'deduct';
@@ -21,7 +36,8 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
     : (isCashOut && isDeducted ? (transaction.amount - transaction.commission) : transaction.amount);
 
   const receiptText = `
-=== Money Agent POS Voucher ===
+=== ${shopProfile.shopName || 'Money Agent POS'} ===
+${shopProfile.address ? `လိပ်စာ: ${shopProfile.address}\n` : ''}${shopProfile.phone ? `ဖုန်း: ${shopProfile.phone}\n` : ''}--------------------------------
 ပြေစာအမှတ်: #${transaction.id}
 နေ့စွဲ / အချိန်: ${transaction.date} ${transaction.time || ''}
 ဖောက်သည်အမည်: ${transaction.customerName}
@@ -47,7 +63,7 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
+        {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
@@ -57,17 +73,45 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center"
+            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Voucher Paper Box */}
-        <div className="p-5 bg-slate-50 border border-dashed border-slate-300 rounded-xl font-mono text-xs text-slate-800 space-y-3 mb-4 select-all">
-          <div className="text-center pb-2 border-b border-dashed border-slate-300 font-sans">
-            <div className="font-bold text-sm text-slate-900">📱 MONEY AGENT POS</div>
-            <div className="text-[11px] text-slate-500">ငွေလွှဲ / ငွေထုတ် ပြေစာလက်မှတ်</div>
+        <div className="p-5 bg-slate-50 border border-dashed border-slate-300 rounded-xl font-mono text-xs text-slate-800 space-y-3 mb-4 select-all shadow-inner">
+          {/* Shop Header (Centered) */}
+          <div className="text-center pb-3 border-b border-dashed border-slate-300 font-sans space-y-1">
+            {shopProfile.logoUrl && (
+              <div className="flex justify-center mb-2">
+                <div className="w-14 h-14 rounded-full border-2 border-indigo-100 bg-white p-1 shadow-xs flex items-center justify-center overflow-hidden">
+                  <img
+                    src={shopProfile.logoUrl}
+                    alt="Shop Logo"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </div>
+            )}
+            <div className="font-bold text-base text-slate-900 tracking-tight">
+              {shopProfile.shopName || '📱 MONEY AGENT POS'}
+            </div>
+            {shopProfile.address && (
+              <div className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                <span>{shopProfile.address}</span>
+              </div>
+            )}
+            {shopProfile.phone && (
+              <div className="text-[11px] text-slate-600 font-semibold flex items-center justify-center gap-1 font-mono">
+                <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                <span>{shopProfile.phone}</span>
+              </div>
+            )}
+            <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider pt-0.5">
+              ငွေလွှဲ / ငွေထုတ် ပြေစာလက်မှတ်
+            </div>
           </div>
 
           <div className="flex justify-between">
@@ -110,7 +154,7 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
               <span>+{formatKs(transaction.commission)}</span>
             </div>
             {isCashOut && (
-              <div className="flex justify-between text-sm py-1.5 mt-1 border-t border-dashed border-slate-200 font-bold text-rose-700 bg-rose-50/50 px-2 rounded">
+              <div className="flex justify-between text-sm py-1.5 mt-1 border-t border-dashed border-slate-200 font-bold text-rose-700 bg-rose-50/70 px-2 rounded">
                 <span>ဖောက်သည်သို့ အမှန်ပေးငွေ:</span>
                 <span>{formatKs(netCash)}</span>
               </div>
@@ -133,7 +177,7 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
         <div className="flex gap-2">
           <button
             onClick={handleCopyText}
-            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+            className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
             {copied ? (
               <>
@@ -149,7 +193,7 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
           </button>
           <button
             onClick={handlePrint}
-            className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20"
+            className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/20 cursor-pointer"
           >
             <Printer className="w-4 h-4" />
             Print ထုတ်မည်
