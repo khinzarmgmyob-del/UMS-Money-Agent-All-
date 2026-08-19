@@ -24,10 +24,17 @@ import {
   LayoutGrid,
   Table as TableIcon,
   Filter,
+  Share2,
+  AlertCircle,
+  CheckCircle2,
+  Info,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs, formatLakh } from './utils/formatters';
+import { exportBackupData, readBackupFromFile } from './utils/backupManager';
 import { LicenseLockScreen } from './components/LicenseLockScreen';
 import { TransactionModal } from './components/TransactionModal';
 import { WalletModal } from './components/WalletModal';
@@ -36,6 +43,7 @@ import { ReportModal, getCommissionBreakdown } from './components/ReportModal';
 import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShopProfileModal } from './components/ShopProfileModal';
 import { TotalAccountsReportModal } from './components/TotalAccountsReportModal';
+import { RestoreConfirmModal } from './components/RestoreConfirmModal';
 
 // Initial Clean Cash Accounts (0 Balance)
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -121,6 +129,22 @@ export default function App() {
   const [showTotalAccountsReport, setShowTotalAccountsReport] = useState<boolean>(false);
 
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
+
+  // Backup & Restore & Toast States
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [pendingRestoreData, setPendingRestoreData] = useState<BackupData | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Modal Filter States
   const [selectedReportDate, setSelectedReportDate] = useState<string>(todayStr);
@@ -322,61 +346,73 @@ export default function App() {
     }
   };
 
-  // Backup & Restore Handlers
-  const handleBackup = () => {
-    const backupData: BackupData = {
-      cashAccounts,
-      cashBalance: totalCashBalance,
-      wallets,
-      transactions,
-      shopProfile,
-      exportedAt: new Date().toISOString(),
-      version: '2.0.0',
-    };
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `money_agent_backup_${todayStr}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+  // Capacitor & Web Backup Export Handler
+  const handleBackup = async (shareDirectly: boolean = false) => {
+    setIsExporting(true);
+    try {
+      const backupData: BackupData = {
+        cashAccounts,
+        cashBalance: totalCashBalance,
+        wallets,
+        transactions,
+        shopProfile,
+        exportedAt: new Date().toISOString(),
+        version: '2.0.0',
+      };
+
+      const result = await exportBackupData(backupData, shareDirectly);
+      if (result.success) {
+        showToast(result.message, 'success');
+      } else {
+        showToast(result.message, 'error');
+      }
+    } catch (err: any) {
+      showToast('Backup လုပ်ဆောင်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့သည်: ' + (err?.message || ''), 'error');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleRestoreClick = () => {
     if (fileInputRef.current) {
+      fileInputRef.current.value = '';
       fileInputRef.current.click();
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileReader = new FileReader();
-    if (e.target.files && e.target.files[0]) {
-      fileReader.readAsText(e.target.files[0], 'UTF-8');
-      fileReader.onload = (event) => {
-        try {
-          const parsed = JSON.parse(event.target?.result as string) as BackupData;
-          if (parsed && Array.isArray(parsed.wallets)) {
-            if (Array.isArray(parsed.cashAccounts)) {
-              setCashAccounts(parsed.cashAccounts);
-            } else if (typeof parsed.cashBalance === 'number') {
-              setCashAccounts([
-                { id: 1, name: 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)', balance: parsed.cashBalance, updatedDate: todayStr },
-              ]);
-            }
-            setWallets(parsed.wallets);
-            setTransactions(parsed.transactions || []);
-            if (parsed.shopProfile) {
-              setShopProfile(parsed.shopProfile);
-              localStorage.setItem('app_shop_profile', JSON.stringify(parsed.shopProfile));
-            }
-            alert('Data Restore အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။');
-          } else {
-            alert('ဖိုင်ဖော်မတ် မမှန်ကန်ပါ။ မှန်ကန်သော Backup JSON ဖိုင်ကိုသာ ရွေးချယ်ပါ။');
-          }
-        } catch (err) {
-          alert('ဖိုင်ဖတ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်။');
-        }
-      };
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const validatedData = await readBackupFromFile(file);
+      setPendingRestoreData(validatedData);
+    } catch (err: any) {
+      showToast(err?.message || 'ဖိုင်ဖတ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်', 'error');
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // Confirm and Apply Restore Data
+  const handleConfirmRestore = () => {
+    if (!pendingRestoreData) return;
+    try {
+      setCashAccounts(pendingRestoreData.cashAccounts);
+      setWallets(pendingRestoreData.wallets);
+      setTransactions(pendingRestoreData.transactions);
+      if (pendingRestoreData.shopProfile) {
+        setShopProfile(pendingRestoreData.shopProfile);
+        localStorage.setItem('app_shop_profile', JSON.stringify(pendingRestoreData.shopProfile));
+      }
+      localStorage.setItem('app_cash_accounts', JSON.stringify(pendingRestoreData.cashAccounts));
+      localStorage.setItem('app_wallets', JSON.stringify(pendingRestoreData.wallets));
+      localStorage.setItem('app_transactions', JSON.stringify(pendingRestoreData.transactions));
+
+      showToast('Data Restore အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။', 'success');
+      setPendingRestoreData(null);
+    } catch (err: any) {
+      showToast('Restore ပြုလုပ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်: ' + (err?.message || ''), 'error');
     }
   };
 
@@ -1150,27 +1186,42 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div>
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                💾 Data စနစ် လုံခြုံရေးနှင့် Backup / Restore
+                💾 Data စနစ် လုံခြုံရေးနှင့် Backup / Restore (Capacitor & Web)
               </h4>
               <p className="text-xs text-slate-400 mt-0.5">
-                သင့်ဖုန်း သို့မဟုတ် ကွန်ပျူတာအတွင်း Data မပျောက်ပျက်စေရန် Backup ပုံမှန် ပြုလုပ်ထားနိုင်ပါသည်။
+                ဖုန်းအတွင်း Documents/Downloads သို့ သိမ်းဆည်းနိုင်ခြင်း သို့မဟုတ် Drive/Telegram စသည့် နေရာများသို့ တိုက်ရိုက် Share လုပ်နိုင်ပါသည်။
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={handleBackup}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                onClick={() => handleBackup(false)}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                title="JSON Backup ဖိုင်ကို ဖုန်းထဲသို့ ဒေါင်းလုဒ်/သိမ်းဆည်းမည်"
               >
-                <Download className="w-4 h-4" />
-                📥 Backup (JSON)
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                📥 Backup သိမ်းမည် (JSON)
               </button>
+
+              <button
+                onClick={() => handleBackup(true)}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-violet-600/20 cursor-pointer"
+                title="@capacitor/share ဖြင့် Drive, Telegram, Viber, Files သို့ တိုက်ရိုက် Share လုပ်မည်"
+              >
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+                📤 Backup ဖိုင် Share မည်
+              </button>
+
               <button
                 onClick={handleRestoreClick}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 cursor-pointer"
+                title="သိမ်းဆည်းထားသော JSON Backup ဖိုင်ကို ရွေးချယ်ပြီး Restore ပြန်သွင်းမည်"
               >
                 <Upload className="w-4 h-4" />
-                📤 Restore (ဖိုင်တင်မည်)
+                📥 Restore (ဖိုင်ရွေးမည်)
               </button>
+
               <button
                 onClick={handleResetToZero}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
@@ -1179,11 +1230,12 @@ export default function App() {
                 <RotateCcw className="w-4 h-4" />
                 🔄 စာရင်းအားလုံး ရှင်းမည် (0 ချမည်)
               </button>
+
               <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept=".json"
+                accept=".json,application/json"
                 className="hidden"
               />
             </div>
@@ -1191,7 +1243,32 @@ export default function App() {
         </div>
       </div>
 
+      {/* TOAST NOTIFICATION CONTAINER */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm w-full bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-700 flex items-start gap-3 animate-in slide-in-from-bottom-5 duration-200">
+          {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />}
+          {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />}
+          {toast.type === 'info' && <Info className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />}
+          <div className="text-xs font-medium leading-relaxed flex-1">{toast.message}</div>
+          <button
+            onClick={() => setToast(null)}
+            className="text-slate-400 hover:text-white transition-colors cursor-pointer p-0.5"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* ================= MODALS ================= */}
+
+      {/* Restore Confirmation Modal */}
+      {pendingRestoreData && (
+        <RestoreConfirmModal
+          data={pendingRestoreData}
+          onConfirm={handleConfirmRestore}
+          onCancel={() => setPendingRestoreData(null)}
+        />
+      )}
 
       {/* 1. Transaction Modal (Cash In / Cash Out with Wallet & Cash Account Selection) */}
       {showTransactionModal && (
