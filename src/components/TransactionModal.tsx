@@ -170,9 +170,12 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const cashOutWalletAfter = walletBalanceBefore + numAmount;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
+    <div 
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-3 sm:p-6 flex justify-center items-center"
+      onClick={onClose}
+    >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 z-10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -223,14 +226,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 setType('သွင်း');
                 setCommission('3000');
               }}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 isCashIn
                   ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ArrowDownRight className="w-3.5 h-3.5" />
-              <span>ငွေသွင်း</span>
+              <span>↘ + ငွေသွင်း (Cash In)</span>
             </button>
 
             <button
@@ -239,14 +242,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 setType('ထုတ်');
                 setCommission('3000');
               }}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 isCashOut
                   ? 'bg-red-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>ငွေထုတ်</span>
+              <span>↗ - ငွေထုတ် (Cash Out)</span>
             </button>
 
             <button
@@ -255,14 +258,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 setType('လွှဲပြောင်း');
                 setCommission('1000');
               }}
-              className={`py-2 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 isTransfer
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <ArrowLeftRight className="w-3.5 h-3.5" />
-              <span>Wallet to Wallet</span>
+              <span>⇄ လွှဲပြောင်း</span>
             </button>
           </div>
 
