@@ -20,18 +20,17 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onCancel}
     >
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
-        <div 
-          className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div 
+        className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 z-10 my-auto max-h-[94vh] md:max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-600 to-indigo-600 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-xs">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-xs shrink-0">
               <Database className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -41,14 +40,14 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
           </div>
           <button
             onClick={onCancel}
-            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+        <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
           {/* Warning Banner */}
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900">
             <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -116,7 +115,7 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2 shrink-0">
           <button
             onClick={onCancel}
             className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
@@ -130,7 +129,6 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
             <CheckCircle2 className="w-4 h-4" />
             အတည်ပြုပြီး Restore သွင်းမည်
           </button>
-        </div>
         </div>
       </div>
     </div>

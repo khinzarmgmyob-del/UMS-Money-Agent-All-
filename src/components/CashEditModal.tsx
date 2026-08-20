@@ -82,36 +82,36 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onClose}
     >
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
-        <div 
-          className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div 
+        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-5 md:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-4 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
+            <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
               <Banknote className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-slate-800">
                 💵 လက်ငင်းငွေသား အကောင့်များ စီမံခန့်ခွဲမှု
               </h3>
-              <p className="text-[11px] text-slate-400">Cash Drawers / Cash Accounts Management</p>
+              <p className="text-[11px] text-slate-400">ငွေပုံး/သေတ္တာ အသစ်ထည့်ခြင်းနှင့် လက်ကျန်ငွေ ပြင်ဆင်ခြင်း</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Total Summary */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4 -mr-1">
+          {/* Total Summary */}
         <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 mb-5 flex items-center justify-between">
           <div>
             <div className="text-xs text-emerald-800 font-semibold">စုစုပေါင်း လက်ငင်းငွေသား လက်ကျန်</div>

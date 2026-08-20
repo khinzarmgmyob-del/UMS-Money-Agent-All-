@@ -171,16 +171,15 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onClose}
     >
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
-        <div
-          className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div
+        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-5 md:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 mb-3 shrink-0">
           <div className="flex items-center gap-2.5">
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
@@ -220,14 +219,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
         </div>
 
         {/* 2-Way Type Switcher */}
-        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl text-xs sm:text-sm font-bold mb-4">
+        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl text-xs sm:text-sm font-bold mb-3 shrink-0">
           <button
             type="button"
             onClick={() => {
               setType('သွင်း');
               setCommission('3000');
             }}
-            className={`py-2.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               isCashIn
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -243,7 +242,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               setType('ထုတ်');
               setCommission('3000');
             }}
-            className={`py-2.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
               isCashOut
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -254,7 +253,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
         </div>
 
-          <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
+        <form id="transaction-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto pr-1 space-y-4 -mr-1">
             {/* Customer Name & Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -837,7 +836,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </form>
         </div>
-      </div>
     </div>
   );
 };

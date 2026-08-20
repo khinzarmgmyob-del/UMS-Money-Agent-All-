@@ -68,16 +68,15 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onClose}
     >
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
-        <div 
-          className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div 
+        className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-5 md:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3 shrink-0">
           <div className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
               isTransfer ? 'bg-sky-50 text-sky-600' : isCashOut ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
@@ -88,14 +87,16 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+            className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Voucher Paper Box */}
-        <div className="p-5 bg-slate-50 border border-dashed border-slate-300 rounded-xl font-mono text-xs text-slate-800 space-y-3 mb-4 select-all shadow-inner">
+        {/* Scrollable Receipt Body */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4 -mr-1 mb-3">
+          {/* Voucher Paper Box */}
+          <div className="p-4 sm:p-5 bg-slate-50 border border-dashed border-slate-300 rounded-xl font-mono text-xs text-slate-800 space-y-3 select-all shadow-inner">
           {/* Shop Header (Centered) */}
           <div className="text-center pb-3 border-b border-dashed border-slate-300 font-sans space-y-1">
             {shopProfile.logoUrl && (
@@ -212,9 +213,10 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
             ကျေးဇူးတင်ပါသည်။ အဆင်ပြေစွာ အသုံးပြုနိုင်ပါစေ။
           </div>
         </div>
+      </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-2">
+        {/* Action buttons (Pinned at bottom) */}
+        <div className="flex gap-2 pt-2 border-t border-slate-100 shrink-0">
           <button
             onClick={handleCopyText}
             className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
@@ -238,7 +240,6 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
             <Printer className="w-4 h-4" />
             Print ထုတ်မည်
           </button>
-        </div>
         </div>
       </div>
     </div>

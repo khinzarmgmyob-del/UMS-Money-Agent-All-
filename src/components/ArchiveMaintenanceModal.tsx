@@ -116,18 +116,17 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onClose}
     >
-      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
-        <div 
-          className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div 
+        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-600 to-indigo-700 text-white flex items-center justify-between">
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-600 to-indigo-700 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-xs">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-xs shrink-0">
               <Archive className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -137,14 +136,14 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto">
+        <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
           {/* STEP 1: SELECT ARCHIVE PERIOD */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
@@ -315,7 +314,7 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-end">
+        <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-end shrink-0">
           <button
             type="button"
             onClick={onClose}
@@ -323,7 +322,6 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
           >
             ပိတ်မည် (Close)
           </button>
-        </div>
         </div>
       </div>
     </div>

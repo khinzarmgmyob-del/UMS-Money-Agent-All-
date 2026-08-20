@@ -534,22 +534,22 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 antialiased p-3 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-100 text-slate-800 antialiased p-2.5 sm:p-4 md:p-6 lg:p-8 flex flex-col justify-start">
+      <div className="w-full max-w-7xl mx-auto space-y-4 md:space-y-6 flex-1 flex flex-col">
         {/* TOP HEADER */}
-        <header className="bg-white rounded-2xl p-5 shadow-xs border border-slate-200/80 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
+        <header className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-3.5">
             {shopProfile.logoUrl ? (
-              <div className="w-12 h-12 rounded-2xl border border-slate-200 bg-white p-1 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl border border-slate-200 bg-white p-1 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
                 <img src={shopProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
               </div>
             ) : (
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
-                <Banknote className="w-6 h-6" />
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-md shadow-indigo-600/20 shrink-0">
+                <Banknote className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
             )}
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                 <span>{shopProfile.shopName || 'Money Agent POS'}</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
                   PRO
@@ -563,7 +563,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               onClick={() => setShowShopProfileModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
@@ -585,19 +585,19 @@ export default function App() {
                 setSelectedCashFilter('all');
                 setShowAllTransactionsModal(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
+              className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-colors shadow-sm cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              စာရင်းချုပ် အားလုံး
+              <span>စာရင်းချုပ် အားလုံး</span>
             </button>
           </div>
         </header>
 
         {/* TOP 4 STATS CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {/* CARD 1: CASH ACCOUNTS TOTAL */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative group">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative group">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   💵 လက်ငင်းငွေသားပေါင်း (Cash)
@@ -622,7 +622,7 @@ export default function App() {
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {formatKs(totalCashBalance)}
             </h2>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
@@ -632,8 +632,8 @@ export default function App() {
           </div>
 
           {/* CARD 2: WALLETS TOTAL */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
                   🏦 Wallet လက်ကျန်ပေါင်း
@@ -658,7 +658,7 @@ export default function App() {
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {formatKs(totalWalletBalance)}
             </h2>
             <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
@@ -668,8 +668,8 @@ export default function App() {
           </div>
 
           {/* CARD 3: COMMISSION SUMMARY */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
                 📈 ကော်မရှင်ခ စာရင်း
               </span>
@@ -685,7 +685,7 @@ export default function App() {
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-2xl font-black text-amber-800 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-amber-800 tracking-tight">
               +{formatKs(todayCommission)}
             </h2>
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium">
@@ -695,10 +695,10 @@ export default function App() {
           </div>
 
           {/* CARD 4: TOTAL ALL ACCOUNTS BALANCE (CASH + WALLETS) */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between mb-3">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                🌐 စုစုပေါင်း ငွေစာရင်းအားလုံးလက်ကျန်
+                🌐 စုစုပေါင်း လက်ကျန်ငွေ
               </span>
               <button
                 onClick={() => {
@@ -710,12 +710,12 @@ export default function App() {
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-2xl font-black text-indigo-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-indigo-900 tracking-tight">
               {formatKs(totalCapital)}
             </h2>
             <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-500">
               <span>{formatLakh(totalCapital)}</span>
-              <span className="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] sm:text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
                 ငွေသား ({cashAccounts.length}) + Wallets ({wallets.length})
               </span>
             </div>
@@ -723,25 +723,25 @@ export default function App() {
         </div>
 
         {/* PRIMARY ACTION BUTTONS: CASH IN, CASH OUT & WALLET TO WALLET TRANSFER */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           {/* BUTTON 1: CASH IN (GREEN) */}
           <button
             onClick={() => {
               setTransactionModalType('သွင်း');
               setShowTransactionModal(true);
             }}
-            className="group p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="group p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3.5 text-left">
-              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowDownRight className="w-6 h-6" />
+            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowDownRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-base sm:text-lg font-black tracking-wide truncate">
-                  ငွေသွင်း မှတ်တမ်းတင်မည် (Cash In)
+                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
+                  ငွေသွင်း (Cash In)
                 </div>
-                <div className="text-xs text-emerald-100 line-clamp-1">
-                  ငွေသားလက်ခံ (+) & Wallet မှ လွှဲပေးခြင်း (-)
+                <div className="text-[11px] sm:text-xs text-emerald-100 line-clamp-1">
+                  ငွေသားလက်ခံ (+) & Wallet (-)
                 </div>
               </div>
             </div>
@@ -757,18 +757,18 @@ export default function App() {
               setTransactionModalType('ထုတ်');
               setShowTransactionModal(true);
             }}
-            className="group p-5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="group p-4 sm:p-5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3.5 text-left">
-              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowUpRight className="w-6 h-6" />
+            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-base sm:text-lg font-black tracking-wide truncate">
-                  ငွေထုတ် မှတ်တမ်းတင်မည် (Cash Out)
+                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
+                  ငွေထုတ် (Cash Out)
                 </div>
-                <div className="text-xs text-red-100 line-clamp-1">
-                  Wallet သို့ လွှဲခံ (+) & ငွေသားထုတ်ပေးခြင်း (-)
+                <div className="text-[11px] sm:text-xs text-red-100 line-clamp-1">
+                  Wallet (+) & ငွေသားထုတ်ပေး (-)
                 </div>
               </div>
             </div>
@@ -784,18 +784,18 @@ export default function App() {
               setTransactionModalType('လွှဲပြောင်း');
               setShowTransactionModal(true);
             }}
-            className="group p-5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white rounded-2xl shadow-lg shadow-sky-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="group p-4 sm:p-5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white rounded-2xl shadow-lg shadow-sky-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] sm:col-span-2 md:col-span-1"
           >
-            <div className="flex items-center gap-3.5 text-left">
-              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowLeftRight className="w-6 h-6" />
+            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
+              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowLeftRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </div>
               <div className="min-w-0">
-                <div className="text-base sm:text-lg font-black tracking-wide truncate">
-                  Wallet to Wallet လွှဲပြောင်းမည်
+                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
+                  Wallet to Wallet
                 </div>
-                <div className="text-xs text-sky-100 line-clamp-1">
-                  Wallet အချင်းချင်း ငွေလွှဲပြောင်းခြင်း & ကော်မရှင်
+                <div className="text-[11px] sm:text-xs text-sky-100 line-clamp-1">
+                  Wallet အချင်းချင်း ငွေလွှဲပြောင်းခြင်း
                 </div>
               </div>
             </div>
@@ -807,9 +807,9 @@ export default function App() {
         </div>
 
         {/* 2 ACCOUNTS SECTIONS: 1) CASH DRAWERS & 2) WALLETS */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* SECTION 1: CASH ACCOUNTS */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Banknote className="w-4 h-4 text-emerald-600" />
@@ -858,7 +858,7 @@ export default function App() {
           </div>
 
           {/* SECTION 2: WALLETS */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-indigo-600" />
