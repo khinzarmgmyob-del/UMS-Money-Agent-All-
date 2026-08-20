@@ -116,13 +116,14 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-3 sm:p-6 flex justify-center items-center"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
-      <div 
-        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
+        <div 
+          className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-600 to-indigo-700 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -322,6 +323,7 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
           >
             ပိတ်မည် (Close)
           </button>
+        </div>
         </div>
       </div>
     </div>

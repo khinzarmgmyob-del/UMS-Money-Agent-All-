@@ -20,13 +20,14 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-3 sm:p-6 flex justify-center items-center"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
       onClick={onCancel}
     >
-      <div 
-        className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 my-auto z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
+        <div 
+          className="relative w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-600 to-indigo-600 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
@@ -129,6 +130,7 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
             <CheckCircle2 className="w-4 h-4" />
             အတည်ပြုပြီး Restore သွင်းမည်
           </button>
+        </div>
         </div>
       </div>
     </div>

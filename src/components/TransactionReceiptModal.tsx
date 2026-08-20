@@ -68,13 +68,14 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-3 sm:p-6 flex justify-center items-center"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
-      <div 
-        className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
+        <div 
+          className="relative w-full max-w-md bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
           <div className="flex items-center gap-2">
@@ -237,6 +238,7 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
             <Printer className="w-4 h-4" />
             Print ထုတ်မည်
           </button>
+        </div>
         </div>
       </div>
     </div>

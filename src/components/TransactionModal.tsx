@@ -171,13 +171,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-3 sm:p-6 flex justify-center items-center"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
-      <div
-        className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="min-h-full flex items-center justify-center p-3 sm:p-6 py-6 sm:py-10">
+        <div
+          className="relative w-full max-w-xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2.5">
@@ -218,56 +219,40 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
         </div>
 
-        {/* 3-Way Type Switcher */}
-        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl text-xs font-bold mb-4">
-            <button
-              type="button"
-              onClick={() => {
-                setType('သွင်း');
-                setCommission('3000');
-              }}
-              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                isCashIn
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ArrowDownRight className="w-3.5 h-3.5" />
-              <span>↘ + ငွေသွင်း (Cash In)</span>
-            </button>
+        {/* 2-Way Type Switcher */}
+        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl text-xs sm:text-sm font-bold mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              setType('သွင်း');
+              setCommission('3000');
+            }}
+            className={`py-2.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              isCashIn
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ArrowDownRight className="w-4 h-4" />
+            <span>↘ + ငွေသွင်း (Cash In)</span>
+          </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setType('ထုတ်');
-                setCommission('3000');
-              }}
-              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                isCashOut
-                  ? 'bg-red-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>↗ - ငွေထုတ် (Cash Out)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setType('လွှဲပြောင်း');
-                setCommission('1000');
-              }}
-              className={`py-2 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                isTransfer
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5" />
-              <span>⇄ လွှဲပြောင်း</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setType('ထုတ်');
+              setCommission('3000');
+            }}
+            className={`py-2.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              isCashOut
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ArrowUpRight className="w-4 h-4" />
+            <span>↗ - ငွေထုတ် (Cash Out)</span>
+          </button>
+        </div>
 
           <form id="transaction-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Customer Name & Phone */}
@@ -851,6 +836,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               </button>
             </div>
           </form>
+        </div>
       </div>
     </div>
   );

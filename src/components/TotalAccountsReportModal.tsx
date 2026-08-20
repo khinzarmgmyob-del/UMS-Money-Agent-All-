@@ -164,13 +164,14 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto p-2 sm:p-6 flex justify-center items-center"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain"
       onClick={onClose}
     >
-      <div 
-        className="relative w-full max-w-7xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 z-10"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="min-h-full flex items-center justify-center p-2 sm:p-6 py-4 sm:py-8">
+        <div 
+          className="relative w-full max-w-7xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 gap-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -623,6 +624,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
               </table>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
+  html, body {
     font-family: 'Plus Jakarta Sans', 'Padauk', 'Pyidaungsu', system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
   }
 }
+
