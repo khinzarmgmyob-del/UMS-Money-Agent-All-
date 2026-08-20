@@ -6,6 +6,7 @@ import {
   TrendingUp,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowLeftRight,
   FileSpreadsheet,
   Download,
   Upload,
@@ -30,6 +31,7 @@ import {
   Info,
   Loader2,
   X,
+  Archive,
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
@@ -44,6 +46,7 @@ import { TransactionReceiptModal } from './components/TransactionReceiptModal';
 import { ShopProfileModal } from './components/ShopProfileModal';
 import { TotalAccountsReportModal } from './components/TotalAccountsReportModal';
 import { RestoreConfirmModal } from './components/RestoreConfirmModal';
+import { ArchiveMaintenanceModal } from './components/ArchiveMaintenanceModal';
 
 // Initial Clean Cash Accounts (0 Balance)
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -127,6 +130,7 @@ export default function App() {
   const [showCashReport, setShowCashReport] = useState<boolean>(false);
   const [showAllTransactionsModal, setShowAllTransactionsModal] = useState<boolean>(false);
   const [showTotalAccountsReport, setShowTotalAccountsReport] = useState<boolean>(false);
+  const [showArchiveModal, setShowArchiveModal] = useState<boolean>(false);
 
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
 
@@ -157,7 +161,7 @@ export default function App() {
   const [mainCashFilter, setMainCashFilter] = useState<string>('all');
   const [mainTypeFilter, setMainTypeFilter] = useState<string>('all');
   const [mainSearchQuery, setMainSearchQuery] = useState<string>('');
-  const [mainViewMode, setMainViewMode] = useState<'card' | 'table'>('card'); // Default card for seamless mobile scroll
+  const [mainViewMode, setMainViewMode] = useState<'card' | 'table'>('card');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -188,6 +192,9 @@ export default function App() {
 
   // Helper for actual cash amount
   const getActualCash = (item: Transaction): number => {
+    if (item.type === 'လွှဲပြောင်း') {
+      return 0; // Transfer happens directly between wallets; cash account gets commission
+    }
     if (item.type === 'ထုတ်') {
       if (item.netPayout !== undefined) return item.netPayout;
       if (item.commissionMode === 'deduct') return Math.max(0, item.amount - item.commission);
@@ -208,6 +215,9 @@ export default function App() {
   const todayOut = todayTransactions
     .filter((t) => t.type === 'ထုတ်')
     .reduce((sum, item) => sum + getActualCash(item), 0);
+  const todayTransfer = todayTransactions
+    .filter((t) => t.type === 'လွှဲပြောင်း')
+    .reduce((sum, item) => sum + item.amount, 0);
 
   // Filter Transactions for Reports
   const filterList = () => {
@@ -217,7 +227,7 @@ export default function App() {
       if (selectedWalletFilter === 'none') {
         matchWallet = !t.walletName || t.walletName === 'None' || t.walletName === '-';
       } else if (selectedWalletFilter !== 'all') {
-        matchWallet = t.walletName === selectedWalletFilter;
+        matchWallet = t.walletName === selectedWalletFilter || t.targetWalletName === selectedWalletFilter;
       }
 
       let matchCash = true;
@@ -244,40 +254,65 @@ export default function App() {
     setTransactions([newTransaction, ...transactions]);
 
     if (updateBalances) {
-      const isCashOut = txData.type === 'ထုတ်';
+      if (txData.type === 'လွှဲပြောင်း') {
+        // 1. Dual Wallet Update for Transfer:
+        // Source Wallet decreases by amount
+        // Target Wallet increases by amount
+        setWallets((prevWallets) =>
+          prevWallets.map((w) => {
+            if (w.name === txData.walletName) {
+              return { ...w, balance: w.balance - txData.amount, updatedDate: txData.date };
+            }
+            if (txData.targetWalletName && w.name === txData.targetWalletName) {
+              return { ...w, balance: w.balance + txData.amount, updatedDate: txData.date };
+            }
+            return w;
+          })
+        );
 
-      // 1. Update Selected Wallet:
-      // Cash In: Agent transfers e-money to customer -> Wallet DECREASES
-      // Cash Out: Customer transfers e-money to agent -> Wallet INCREASES
-      setWallets((prevWallets) =>
-        prevWallets.map((w) => {
-          if (w.name === txData.walletName) {
-            const newBal = isCashOut
-              ? w.balance + txData.amount
-              : w.balance - txData.amount;
-            return { ...w, balance: newBal, updatedDate: txData.date };
-          }
-          return w;
-        })
-      );
+        // 2. Cash Account Update (receives commission if any)
+        if (txData.cashAccountName && (txData.commission || 0) > 0) {
+          setCashAccounts((prevAccounts) =>
+            prevAccounts.map((c) => {
+              if (c.name === txData.cashAccountName) {
+                return { ...c, balance: c.balance + (txData.commission || 0), updatedDate: txData.date };
+              }
+              return c;
+            })
+          );
+        }
+      } else {
+        const isCashOut = txData.type === 'ထုတ်';
 
-      // 2. Update Selected Cash Account:
-      // Cash In: Agent receives cash + commission from customer -> Cash Account INCREASES (+ amount + commission)
-      // Cash Out:
-      // - If deduct (မူလငွေမှ နုတ်): Agent pays (amount - commission) in cash -> Cash Account decreases by -(amount - commission)
-      // - If separate (သက်သက်ပေး): Agent pays (amount) and receives (commission) cash -> Cash Account net change is -(amount - commission)
-      const cashDelta = isCashOut
-        ? -(txData.amount - (txData.commission || 0))
-        : txData.amount + (txData.commission || 0);
+        // 1. Update Selected Wallet:
+        // Cash In: Agent transfers e-money to customer -> Wallet DECREASES
+        // Cash Out: Customer transfers e-money to agent -> Wallet INCREASES
+        setWallets((prevWallets) =>
+          prevWallets.map((w) => {
+            if (w.name === txData.walletName) {
+              const newBal = isCashOut
+                ? w.balance + txData.amount
+                : w.balance - txData.amount;
+              return { ...w, balance: newBal, updatedDate: txData.date };
+            }
+            return w;
+          })
+        );
 
-      setCashAccounts((prevAccounts) =>
-        prevAccounts.map((c) => {
-          if (c.name === txData.cashAccountName) {
-            return { ...c, balance: c.balance + cashDelta, updatedDate: txData.date };
-          }
-          return c;
-        })
-      );
+        // 2. Update Selected Cash Account:
+        const cashDelta = isCashOut
+          ? -(txData.amount - (txData.commission || 0))
+          : txData.amount + (txData.commission || 0);
+
+        setCashAccounts((prevAccounts) =>
+          prevAccounts.map((c) => {
+            if (c.name === txData.cashAccountName) {
+              return { ...c, balance: c.balance + cashDelta, updatedDate: txData.date };
+            }
+            return c;
+          })
+        );
+      }
     }
 
     setShowTransactionModal(false);
@@ -342,7 +377,7 @@ export default function App() {
       localStorage.setItem('app_cash_accounts', JSON.stringify(resetCash));
       localStorage.setItem('app_wallets', JSON.stringify(resetWallets));
       localStorage.setItem('app_transactions', JSON.stringify([]));
-      alert('ဒေတာများ အားလုံးကို ရှင်းလင်းပြီး လက်ကျန်ငွေများ 0 သို့ သတ်မှတ်ပြီးပါပြီ။');
+      showToast('ဒေတာများ အားလုံးကို ရှင်းလင်းပြီး လက်ကျန်ငွေများ 0 သို့ သတ်မှတ်ပြီးပါပြီ။', 'success');
     }
   };
 
@@ -416,6 +451,14 @@ export default function App() {
     }
   };
 
+  // Data Purge Handler for Archiving
+  const handlePurgeArchived = (retainedTransactions: Transaction[], purgedCount: number) => {
+    setTransactions(retainedTransactions);
+    localStorage.setItem('app_transactions', JSON.stringify(retainedTransactions));
+    setShowArchiveModal(false);
+    showToast(`စာရင်းဟောင်း (${purgedCount}) ခု အား ဖျက်ထုတ်ပြီး Main Database ကို Compact ရှင်းလင်းပြီးပါပြီ။`, 'success');
+  };
+
   // Filter main dashboard transactions
   const filteredMainTransactions = transactions.filter((t) => {
     // 1. Date Filter
@@ -426,7 +469,7 @@ export default function App() {
     if (mainWalletFilter === 'none') {
       if (t.walletName && t.walletName !== 'None' && t.walletName !== '-') return false;
     } else if (mainWalletFilter !== 'all') {
-      if (t.walletName !== mainWalletFilter) return false;
+      if (t.walletName !== mainWalletFilter && t.targetWalletName !== mainWalletFilter) return false;
     }
 
     // 3. Cash Account Filter
@@ -448,6 +491,7 @@ export default function App() {
       t.customerName.toLowerCase().includes(q) ||
       t.phone.toLowerCase().includes(q) ||
       t.walletName.toLowerCase().includes(q) ||
+      (t.targetWalletName && t.targetWalletName.toLowerCase().includes(q)) ||
       (t.cashAccountName && t.cashAccountName.toLowerCase().includes(q)) ||
       (t.note && t.note.toLowerCase().includes(q))
     );
@@ -488,12 +532,15 @@ export default function App() {
             )}
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                {shopProfile.shopName || '📱 Money Agent POS'}
+                <span>{shopProfile.shopName || 'Money Agent POS'}</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
+                  PRO
+                </span>
               </h1>
-              <p className="text-xs text-slate-500 font-medium">
-                {shopProfile.address
-                  ? `${shopProfile.address} • ${shopProfile.phone || ''}`
-                  : 'ငွေလွှဲ / ငွေထုတ် စာရင်းကိုင်နှင့် လက်ကျန်ငွေ စီမံမှုစနစ်'}
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                {shopProfile.phone
+                  ? `${shopProfile.phone} • ${todayStr}`
+                  : `ငွေသွင်း/ငွေထုတ် & Wallet လွှဲပြောင်း စီမံခန့်ခွဲမှုစနစ် • ${todayStr}`}
               </p>
             </div>
           </div>
@@ -602,7 +649,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* CARD 3: COMMISSION SUMMARY (REPLACED TOTAL CAPITAL CARD PER USER REQUEST) */}
+          {/* CARD 3: COMMISSION SUMMARY */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
@@ -657,8 +704,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* PRIMARY ACTION BUTTONS: CASH IN & CASH OUT */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* PRIMARY ACTION BUTTONS: CASH IN, CASH OUT & WALLET TO WALLET TRANSFER */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* BUTTON 1: CASH IN (GREEN) */}
           <button
             onClick={() => {
               setTransactionModalType('သွင်း');
@@ -666,23 +714,26 @@ export default function App() {
             }}
             className="group p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform">
-                <ArrowDownRight className="w-7 h-7" />
+            <div className="flex items-center gap-3.5 text-left">
+              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowDownRight className="w-6 h-6" />
               </div>
-              <div>
-                <div className="text-lg font-black tracking-wide">ငွေသွင်း မှတ်တမ်းတင်မည် (Cash In)</div>
-                <div className="text-xs text-emerald-100">
-                  ဖောက်သည်ထံမှ ငွေသားလက်ခံ (+) &amp; မိမိ Wallet မှ လွှဲပေးခြင်း (-)
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-black tracking-wide truncate">
+                  ငွေသွင်း မှတ်တမ်းတင်မည် (Cash In)
+                </div>
+                <div className="text-xs text-emerald-100 line-clamp-1">
+                  ငွေသားလက်ခံ (+) & Wallet မှ လွှဲပေးခြင်း (-)
                 </div>
               </div>
             </div>
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-semibold text-emerald-100">ယနေ့ ငွေသွင်း</div>
-              <div className="text-base font-black">+{formatKs(todayIn)}</div>
+            <div className="text-right hidden sm:block shrink-0 pl-2">
+              <div className="text-[11px] font-semibold text-emerald-100">ယနေ့ ငွေသွင်း</div>
+              <div className="text-sm font-black">+{formatKs(todayIn)}</div>
             </div>
           </button>
 
+          {/* BUTTON 2: CASH OUT (RED) */}
           <button
             onClick={() => {
               setTransactionModalType('ထုတ်');
@@ -690,20 +741,49 @@ export default function App() {
             }}
             className="group p-5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-4 text-left">
-              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform">
-                <ArrowUpRight className="w-7 h-7" />
+            <div className="flex items-center gap-3.5 text-left">
+              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowUpRight className="w-6 h-6" />
               </div>
-              <div>
-                <div className="text-lg font-black tracking-wide">ငွေထုတ် မှတ်တမ်းတင်မည် (Cash Out)</div>
-                <div className="text-xs text-red-100">
-                  မိမိ Wallet သို့ ငွေလွှဲလက်ခံ (+) &amp; ဖောက်သည်ထံ ငွေသားထုတ်ပေးခြင်း (-)
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-black tracking-wide truncate">
+                  ငွေထုတ် မှတ်တမ်းတင်မည် (Cash Out)
+                </div>
+                <div className="text-xs text-red-100 line-clamp-1">
+                  Wallet သို့ လွှဲခံ (+) & ငွေသားထုတ်ပေးခြင်း (-)
                 </div>
               </div>
             </div>
-            <div className="text-right hidden sm:block">
-              <div className="text-xs font-semibold text-red-100">ယနေ့ ငွေထုတ်</div>
-              <div className="text-base font-black">-{formatKs(todayOut)}</div>
+            <div className="text-right hidden sm:block shrink-0 pl-2">
+              <div className="text-[11px] font-semibold text-red-100">ယနေ့ ငွေထုတ်</div>
+              <div className="text-sm font-black">-{formatKs(todayOut)}</div>
+            </div>
+          </button>
+
+          {/* BUTTON 3: WALLET TO WALLET TRANSFER (LIGHT BLUE / SKY) */}
+          <button
+            onClick={() => {
+              setTransactionModalType('လွှဲပြောင်း');
+              setShowTransactionModal(true);
+            }}
+            className="group p-5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white rounded-2xl shadow-lg shadow-sky-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3.5 text-left">
+              <div className="w-11 h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
+                <ArrowLeftRight className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base sm:text-lg font-black tracking-wide truncate">
+                  Wallet to Wallet လွှဲပြောင်းမည်
+                </div>
+                <div className="text-xs text-sky-100 line-clamp-1">
+                  Wallet အချင်းချင်း ငွေလွှဲပြောင်းခြင်း & ကော်မရှင်
+                </div>
+              </div>
+            </div>
+            <div className="text-right hidden sm:block shrink-0 pl-2">
+              <div className="text-[11px] font-semibold text-sky-100">ယနေ့ လွှဲပြောင်း</div>
+              <div className="text-sm font-black">{formatKs(todayTransfer)}</div>
             </div>
           </button>
         </div>
@@ -807,7 +887,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* RECENT TRANSACTIONS SECTION (WITH FULL FILTERING & MOBILE-OPTIMIZED VIEW) */}
+        {/* RECENT TRANSACTIONS SECTION */}
         <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
           {/* Header Row */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -818,13 +898,13 @@ export default function App() {
                   လတ်တလော အရောင်းအဝယ် မှတ်တမ်းများ ({filteredMainTransactions.length})
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  လက်ငင်းငွေသားနှင့် Wallet အကောင့်အလိုက် စစ်ထုတ်ကြည့်ရှုနိုင်ပါသည်
+                  လက်ငင်းငွေသား၊ Wallet နှင့် Wallet to Wallet အလိုက် စစ်ထုတ်ကြည့်ရှုနိုင်ပါသည်
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5">
-              {/* View Mode Toggle: Cards vs Table */}
+              {/* View Mode Toggle */}
               <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                 <button
                   onClick={() => setMainViewMode('card')}
@@ -833,7 +913,7 @@ export default function App() {
                       ? 'bg-white text-indigo-600 shadow-xs'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  title="ကတ်ပြားပုံစံ (Card View - Phone အတွက် အလွယ်တကူ Scroll ကြည့်နိုင်သည်)"
+                  title="ကတ်ပြားပုံစံ (Card View)"
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
                   <span>Card ပုံစံ</span>
@@ -953,6 +1033,7 @@ export default function App() {
                 <option value="all">အမျိုးအစား အားလုံး</option>
                 <option value="သွင်း">ငွေသွင်း (Cash In)</option>
                 <option value="ထုတ်">ငွေထုတ် (Cash Out)</option>
+                <option value="လွှဲပြောင်း">Wallet to Wallet လွှဲပြောင်း</option>
               </select>
             </div>
 
@@ -969,7 +1050,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* VIEW 1: RESPONSIVE CARDS VIEW (PERFECT FOR PHONE SCROLLING) */}
+          {/* VIEW 1: RESPONSIVE CARDS VIEW */}
           {mainViewMode === 'card' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredMainTransactions.length === 0 ? (
@@ -979,6 +1060,7 @@ export default function App() {
               ) : (
                 filteredMainTransactions.map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
+                  const isTransfer = item.type === 'လွှဲပြောင်း';
                   const actualCash = getActualCash(item);
                   const { cashComm, walletComm } = getCommissionBreakdown(item);
 
@@ -996,12 +1078,20 @@ export default function App() {
                             </span>
                             <span
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                                isCashOut
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : isCashOut
                                   ? 'bg-red-50 text-red-700 border border-red-200'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               }`}
                             >
-                              {isCashOut ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                              {isTransfer ? (
+                                <ArrowLeftRight className="w-3 h-3" />
+                              ) : isCashOut ? (
+                                <ArrowUpRight className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownRight className="w-3 h-3" />
+                              )}
                               {item.type}
                             </span>
                           </div>
@@ -1018,22 +1108,36 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Cash Amounts */}
+                      {/* Amounts */}
                       <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
                         <div>
-                          <span className="text-[10px] text-slate-500 block">လက်ငင်းငွေ:</span>
+                          <span className="text-[10px] text-slate-500 block">
+                            {isTransfer ? 'လွှဲပြောင်းငွေ:' : 'လက်ငင်းငွေ:'}
+                          </span>
                           <span
                             className={`text-sm font-black ${
-                              isCashOut ? 'text-red-600' : 'text-slate-900'
+                              isTransfer
+                                ? 'text-sky-700'
+                                : isCashOut
+                                ? 'text-red-600'
+                                : 'text-slate-900'
                             }`}
                           >
-                            {isCashOut ? `- ${actualCash.toLocaleString()}` : `+ ${actualCash.toLocaleString()}`} Ks
+                            {isTransfer
+                              ? formatKs(item.amount)
+                              : isCashOut
+                              ? `- ${actualCash.toLocaleString()} Ks`
+                              : `+ ${actualCash.toLocaleString()} Ks`}
                           </span>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 block">မူလလွှဲငွေ:</span>
-                          <span className="font-semibold text-slate-700">{item.amount.toLocaleString()} Ks</span>
+                          <span className="text-[10px] text-slate-500 block">
+                            {isTransfer ? 'လွှဲခ/ဝန်ဆောင်ခ:' : 'မူလလွှဲငွေ:'}
+                          </span>
+                          <span className="font-semibold text-slate-700">
+                            {isTransfer ? `+${formatKs(item.commission)}` : `${item.amount.toLocaleString()} Ks`}
+                          </span>
                         </div>
 
                         <div>
@@ -1054,9 +1158,15 @@ export default function App() {
                       {/* Accounts Used */}
                       <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100">
                         <div className="flex items-center gap-1">
-                          <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">
-                            🏦 {item.walletName}
-                          </span>
+                          {isTransfer ? (
+                            <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold text-[10px]">
+                              🔄 {item.walletName} ➔ {item.targetWalletName || '-'}
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">
+                              🏦 {item.walletName}
+                            </span>
+                          )}
                           <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[10px]">
                             💵 {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                           </span>
@@ -1085,7 +1195,7 @@ export default function App() {
                     <th className="p-3 whitespace-nowrap">နေ့စွဲ/အချိန်</th>
                     <th className="p-3 whitespace-nowrap">ဖောက်သည် အမည်</th>
                     <th className="p-3 text-center whitespace-nowrap">အမျိုးအစား</th>
-                    <th className="p-3 text-right whitespace-nowrap">လက်ငင်းငွေ (Ks)</th>
+                    <th className="p-3 text-right whitespace-nowrap">လက်ငင်း/လွှဲငွေ (Ks)</th>
                     <th className="p-3 text-right whitespace-nowrap bg-amber-50/50 text-amber-900">💵 ငွေသားကော်မရှင်</th>
                     <th className="p-3 text-right whitespace-nowrap bg-purple-50/50 text-purple-900">📱 Walletကော်မရှင်</th>
                     <th className="p-3 whitespace-nowrap">ဖုန်းနံပါတ်</th>
@@ -1104,6 +1214,7 @@ export default function App() {
                   ) : (
                     filteredMainTransactions.map((item, index) => {
                       const isCashOut = item.type === 'ထုတ်';
+                      const isTransfer = item.type === 'လွှဲပြောင်း';
                       const actualCash = getActualCash(item);
                       const { cashComm, walletComm } = getCommissionBreakdown(item);
                       return (
@@ -1121,24 +1232,40 @@ export default function App() {
                           <td className="p-3 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
-                                isCashOut
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : isCashOut
                                   ? 'bg-red-50 text-red-700 border border-red-200'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               }`}
                             >
-                              {isCashOut ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                              {isTransfer ? (
+                                <ArrowLeftRight className="w-3 h-3" />
+                              ) : isCashOut ? (
+                                <ArrowUpRight className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownRight className="w-3 h-3" />
+                              )}
                               {item.type}
                             </span>
                           </td>
 
-                          {/* Actual cash given / received */}
+                          {/* Actual cash given / received / transfer */}
                           <td
                             className={`p-3 text-right font-bold whitespace-nowrap ${
-                              isCashOut ? 'text-red-600' : 'text-slate-900'
+                              isTransfer
+                                ? 'text-sky-700'
+                                : isCashOut
+                                ? 'text-red-600'
+                                : 'text-slate-900'
                             }`}
                           >
                             <div>
-                              {isCashOut ? `- ${actualCash.toLocaleString()}` : actualCash.toLocaleString()} Ks
+                              {isTransfer
+                                ? formatKs(item.amount)
+                                : isCashOut
+                                ? `- ${actualCash.toLocaleString()}`
+                                : actualCash.toLocaleString()} Ks
                             </div>
                           </td>
 
@@ -1154,9 +1281,15 @@ export default function App() {
 
                           <td className="p-3 text-slate-600 font-mono whitespace-nowrap">{item.phone}</td>
                           <td className="p-3 text-slate-700 whitespace-nowrap">
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
-                              {item.walletName}
-                            </span>
+                            {isTransfer ? (
+                              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold text-[11px]">
+                                {item.walletName} ➔ {item.targetWalletName || '-'}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
+                                {item.walletName}
+                              </span>
+                            )}
                           </td>
                           <td className="p-3 text-slate-700 whitespace-nowrap">
                             <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[11px]">
@@ -1181,64 +1314,75 @@ export default function App() {
           )}
         </div>
 
-        {/* BACKUP & RESTORE FOOTER CARD */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        {/* DATA MAINTENANCE, ARCHIVE & BACKUP / RESTORE FOOTER CARD */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div>
               <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                💾 Data စနစ် လုံခြုံရေးနှင့် Backup / Restore (Capacitor & Web)
+                💾 Data စနစ် လုံခြုံရေး၊ Archive (စာရင်းဟောင်းခွဲထုတ်ခြင်း) နှင့် Backup / Restore
               </h4>
               <p className="text-xs text-slate-400 mt-0.5">
-                ဖုန်းအတွင်း Documents/Downloads သို့ သိမ်းဆည်းနိုင်ခြင်း သို့မဟုတ် Drive/Telegram စသည့် နေရာများသို့ တိုက်ရိုက် Share လုပ်နိုင်ပါသည်။
+                စာရင်းဟောင်းများကို ခွဲထုတ်ပြီး App ပေါ့ပါးသွက်လက်အောင် ပြုလုပ်နိုင်သည့်အပြင် JSON Backup များကို ဖုန်းထဲသို့ သို့မဟုတ် Drive/Telegram သို့ တိုက်ရိုက် Share သိမ်းဆည်းနိုင်ပါသည်။
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleBackup(false)}
-                disabled={isExporting}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
-                title="JSON Backup ဖိုင်ကို ဖုန်းထဲသို့ ဒေါင်းလုဒ်/သိမ်းဆည်းမည်"
-              >
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                📥 Backup သိမ်းမည် (JSON)
-              </button>
 
-              <button
-                onClick={() => handleBackup(true)}
-                disabled={isExporting}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-violet-600/20 cursor-pointer"
-                title="@capacitor/share ဖြင့် Drive, Telegram, Viber, Files သို့ တိုက်ရိုက် Share လုပ်မည်"
-              >
-                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
-                📤 Backup ဖိုင် Share မည်
-              </button>
+            {/* Archive / Maintenance Action Button */}
+            <button
+              onClick={() => setShowArchiveModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/20 cursor-pointer"
+              title="လွန်ခဲ့သော ၆ လ/၁ နှစ် စာရင်းဟောင်းများကို ခွဲထုတ်သိမ်းဆည်းပြီး Database ကို Compact ရှင်းလင်းမည်"
+            >
+              <Archive className="w-4 h-4" />
+              🗄️ စာရင်းဟောင်း Archive &amp; Compact
+            </button>
+          </div>
 
-              <button
-                onClick={handleRestoreClick}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 cursor-pointer"
-                title="သိမ်းဆည်းထားသော JSON Backup ဖိုင်ကို ရွေးချယ်ပြီး Restore ပြန်သွင်းမည်"
-              >
-                <Upload className="w-4 h-4" />
-                📥 Restore (ဖိုင်ရွေးမည်)
-              </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              onClick={() => handleBackup(false)}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              title="JSON Backup ဖိုင်ကို ဖုန်းထဲသို့ ဒေါင်းလုဒ်/သိမ်းဆည်းမည်"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              📥 Full Backup (JSON)
+            </button>
 
-              <button
-                onClick={handleResetToZero}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                title="အရောင်းအဝယ် စာရင်းအားလုံး ရှင်းထုတ်ပြီး လက်ကျန်ငွေ 0 သို့ Reset ချမည်"
-              >
-                <RotateCcw className="w-4 h-4" />
-                🔄 စာရင်းအားလုံး ရှင်းမည် (0 ချမည်)
-              </button>
+            <button
+              onClick={() => handleBackup(true)}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-violet-600/20 cursor-pointer"
+              title="@capacitor/share ဖြင့် Drive, Telegram, Viber, Files သို့ တိုက်ရိုက် Share လုပ်မည်"
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
+              📤 Backup ဖိုင် Share မည်
+            </button>
 
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".json,application/json"
-                className="hidden"
-              />
-            </div>
+            <button
+              onClick={handleRestoreClick}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-sky-600/20 cursor-pointer"
+              title="သိမ်းဆည်းထားသော JSON Backup ဖိုင်ကို ရွေးချယ်ပြီး Restore ပြန်သွင်းမည်"
+            >
+              <Upload className="w-4 h-4" />
+              📥 Restore (ဖိုင်ရွေးမည်)
+            </button>
+
+            <button
+              onClick={handleResetToZero}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              title="အရောင်းအဝယ် စာရင်းအားလုံး ရှင်းထုတ်ပြီး လက်ကျန်ငွေ 0 သို့ Reset ချမည်"
+            >
+              <RotateCcw className="w-4 h-4" />
+              🔄 စာရင်းအားလုံး ရှင်းမည် (0 ချမည်)
+            </button>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json,application/json"
+              className="hidden"
+            />
           </div>
         </div>
       </div>
@@ -1270,7 +1414,7 @@ export default function App() {
         />
       )}
 
-      {/* 1. Transaction Modal (Cash In / Cash Out with Wallet & Cash Account Selection) */}
+      {/* 1. Transaction Modal (Cash In / Cash Out / Wallet to Wallet) */}
       {showTransactionModal && (
         <TransactionModal
           initialType={transactionModalType}
@@ -1352,7 +1496,7 @@ export default function App() {
         />
       )}
 
-      {/* 7. Commission Report Modal (Specialized Commission Breakdown) */}
+      {/* 7. Commission Report Modal */}
       {showCommissionReport && (
         <ReportModal
           title="📈 ကော်မရှင်ခ စာရင်း အသေးစိတ် Report"
@@ -1411,6 +1555,16 @@ export default function App() {
           shopProfile={shopProfile}
           selectedReportDate={selectedReportDate}
           setSelectedReportDate={setSelectedReportDate}
+        />
+      )}
+
+      {/* 11. Archive & Maintenance Modal */}
+      {showArchiveModal && (
+        <ArchiveMaintenanceModal
+          transactions={transactions}
+          onClose={() => setShowArchiveModal(false)}
+          onPurgeArchived={handlePurgeArchived}
+          onShowToast={showToast}
         />
       )}
     </div>

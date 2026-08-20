@@ -7,6 +7,7 @@ import {
   Printer,
   ArrowDownRight,
   ArrowUpRight,
+  ArrowLeftRight,
   Trash2,
   Eye,
   Banknote,
@@ -39,6 +40,9 @@ interface ReportModalProps {
 
 // Helper to get actual cash amount handed out/in
 export const getActualCashAmount = (item: Transaction): number => {
+  if (item.type === 'လွှဲပြောင်း') {
+    return 0; // E-money between wallets; cash account gets commission only
+  }
   if (item.type === 'ထုတ်') {
     if (item.netPayout !== undefined) return item.netPayout;
     if (item.commissionMode === 'deduct') return Math.max(0, item.amount - item.commission);
@@ -49,15 +53,15 @@ export const getActualCashAmount = (item: Transaction): number => {
 
 // Helper to get Cash Commission vs Wallet Commission
 export const getCommissionBreakdown = (item: Transaction): { cashComm: number; walletComm: number } => {
+  if (item.type === 'လွှဲပြောင်း') {
+    return { cashComm: item.commission || 0, walletComm: 0 };
+  }
   if (item.commissionChannel === 'Cash') {
     return { cashComm: item.commission, walletComm: 0 };
   }
   if (item.commissionChannel === 'Wallet') {
     return { cashComm: 0, walletComm: item.commission };
   }
-  // In Burmese money agent system:
-  // If Cash Out with 'deduct': customer transferred full e-money, less cash was paid out, so commission remained in Wallet.
-  // If Cash In or Cash Out with 'separate': customer handed cash commission to cash box.
   if (item.type === 'ထုတ်' && item.commissionMode === 'deduct') {
     return { cashComm: 0, walletComm: item.commission };
   }
@@ -81,7 +85,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   onViewReceipt,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'card'>('card'); // Default 'card' for convenient mobile view
+  const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   const [showSummaryChips, setShowSummaryChips] = useState(true);
   const todayStr = getTodayFormatted();
 
@@ -98,7 +102,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         return false;
       }
     } else if (selectedWalletFilter !== 'all') {
-      if (item.walletName !== selectedWalletFilter) return false;
+      if (item.walletName !== selectedWalletFilter && item.targetWalletName !== selectedWalletFilter) {
+        return false;
+      }
     }
 
     // 3. Cash Account Filter (All / None / Specific)
@@ -117,6 +123,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       item.customerName.toLowerCase().includes(query) ||
       item.phone.toLowerCase().includes(query) ||
       item.walletName.toLowerCase().includes(query) ||
+      (item.targetWalletName && item.targetWalletName.toLowerCase().includes(query)) ||
       (item.cashAccountName && item.cashAccountName.toLowerCase().includes(query)) ||
       (item.note && item.note.toLowerCase().includes(query))
     );
@@ -131,6 +138,10 @@ export const ReportModal: React.FC<ReportModalProps> = ({
     .filter((t) => t.type === 'ထုတ်')
     .reduce((sum, item) => sum + getActualCashAmount(item), 0);
 
+  const totalTransferVolume = filteredData
+    .filter((t) => t.type === 'လွှဲပြောင်း')
+    .reduce((sum, item) => sum + item.amount, 0);
+
   const netAmount = totalIn - totalOut;
 
   // Calculate Cash Commission vs Wallet Commission vs Total Commission
@@ -144,13 +155,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       return;
     }
     const headers = [
-      'စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,သွင်း/ထုတ်,လက်ငင်းပေး/ရငွေ(Ks),မူလလွှဲငွေ(Ks),လက်ငင်းကော်မရှင်(Ks),Walletကော်မရှင်(Ks),ကော်မရှင်စုစုပေါင်း(Ks),ကော်မရှင်ပုံစံ,ဖုန်း,Walletအကောင့်,ငွေသားအကောင့်,မှတ်ချက်',
+      'စဉ်,နေ့စွဲ,အချိန်,ဖောက်သည်အမည်,အမျိုးအစား,လက်ငင်းပေး/ရငွေ(Ks),မူလလွှဲငွေ(Ks),လက်ငင်းကော်မရှင်(Ks),Walletကော်မရှင်(Ks),ကော်မရှင်စုစုပေါင်း(Ks),ကော်မရှင်ပုံစံ,ဖုန်း,Wallet/လွှဲထုတ်,လက်ခံWallet,ငွေသားအကောင့်,မှတ်ချက်',
     ];
     const rows = filteredData.map((d, index) => {
       const actualCash = getActualCashAmount(d);
       const { cashComm, walletComm } = getCommissionBreakdown(d);
       const isCashOut = d.type === 'ထုတ်';
-      const commModeLabel = isCashOut
+      const isTransfer = d.type === 'လွှဲပြောင်း';
+      const commModeLabel = isTransfer
+        ? 'Wallet လွှဲပြောင်း (ငွေသား ကော်မရှင်)'
+        : isCashOut
         ? d.commissionMode === 'deduct'
           ? 'မူလငွေမှ နုတ်ယူ (Wallet ကော်မရှင်)'
           : 'သက်သက်ပေး (ငွေသား ကော်မရှင်)'
@@ -170,6 +184,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
         `"${commModeLabel}"`,
         `"${d.phone}"`,
         `"${d.walletName}"`,
+        `"${d.targetWalletName || '-'}"`,
         `"${d.cashAccountName || '-'}"`,
         `"${d.note || '-'}"`,
       ].join(',');
@@ -192,7 +207,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-3 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[96vh] flex flex-col overflow-hidden">
-        {/* Header - Optimized for Mobile & Desktop */}
+        {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {icon ? (
@@ -213,7 +228,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* View Mode Toggle: Cards vs Table */}
+            {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg">
               <button
                 onClick={() => setViewMode('card')}
@@ -266,7 +281,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
           </div>
         </div>
 
-        {/* Scrollable Container for Filters, Summary Chips, and Transactions */}
+        {/* Scrollable Container */}
         <div className="overflow-y-auto flex-1 pr-0.5 space-y-3">
           {/* Filter Controls Bar */}
           <div className="flex flex-wrap items-center gap-2 p-2.5 bg-slate-50 border border-slate-200/80 rounded-xl">
@@ -301,21 +316,19 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
               }`}
             >
-              ရက်စွဲအားလုံး
+              အားလုံး (All)
             </button>
 
-            {/* Wallet Filter */}
+            {/* Wallet Filter Dropdown */}
             {wallets && setSelectedWalletFilter && (
-              <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
-                <Wallet className="w-3 h-3 text-indigo-600" />
-                <span className="text-[11px] font-bold text-slate-600">Wallet:</span>
+              <div className="flex items-center gap-1">
+                <Wallet className="w-3.5 h-3.5 text-indigo-600" />
                 <select
                   value={selectedWalletFilter}
                   onChange={(e) => setSelectedWalletFilter(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer max-w-[110px]"
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none max-w-[130px]"
                 >
-                  <option value="all">အားလုံး (All)</option>
-                  <option value="none">မရွေးပါ (None)</option>
+                  <option value="all">Wallet အားလုံး</option>
                   {wallets.map((w) => (
                     <option key={w.id} value={w.name}>
                       {w.name}
@@ -325,18 +338,16 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </div>
             )}
 
-            {/* Cash Account Filter */}
+            {/* Cash Account Filter Dropdown */}
             {cashAccounts && setSelectedCashFilter && (
-              <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
-                <Banknote className="w-3 h-3 text-emerald-600" />
-                <span className="text-[11px] font-bold text-slate-600">ငွေသား:</span>
+              <div className="flex items-center gap-1">
+                <Banknote className="w-3.5 h-3.5 text-emerald-600" />
                 <select
                   value={selectedCashFilter}
                   onChange={(e) => setSelectedCashFilter(e.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer max-w-[110px]"
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none max-w-[130px]"
                 >
-                  <option value="all">အားလုံး (All)</option>
-                  <option value="none">မရွေးပါ (None)</option>
+                  <option value="all">ငွေသား အားလုံး</option>
                   {cashAccounts.map((c) => (
                     <option key={c.id} value={c.name}>
                       {c.name}
@@ -346,36 +357,34 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               </div>
             )}
 
-            {/* Search Box */}
-            <div className="relative flex-1 min-w-[130px]">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            {/* Search Input */}
+            <div className="flex-1 min-w-[140px] relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="ရှာဖွေရန်..."
+                placeholder="အမည်၊ ဖုန်း၊ အကောင့် ရှာရန်..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-lg pl-7 pr-2.5 py-1 text-xs text-slate-800 outline-none"
+                className="w-full pl-8 pr-3 py-1 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 outline-none"
               />
             </div>
           </div>
 
-          {/* Collapsible Summary Chips Banner */}
-          <div className="border border-slate-200/80 rounded-xl overflow-hidden">
-            <div
-              onClick={() => setShowSummaryChips(!showSummaryChips)}
-              className="px-3 py-1.5 bg-slate-100/70 hover:bg-slate-100 flex items-center justify-between cursor-pointer transition-colors"
-            >
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                📊 ငွေစီးဆင်းမှုနှင့် ကော်မရှင် အကျဉ်းချုပ် (Summary)
-              </span>
-              <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
-                <span>{showSummaryChips ? 'ခေါက်သိမ်းမည်' : 'ဖွင့်ကြည့်မည်'}</span>
+          {/* Quick Summary Strip */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+              <span className="text-[11px] font-bold text-slate-700">📊 ငွေကြေးစီးဆင်းမှု နှင့် ကော်မရှင် အကျဉ်းချုပ်</span>
+              <button
+                onClick={() => setShowSummaryChips(!showSummaryChips)}
+                className="text-[11px] text-indigo-600 font-semibold flex items-center gap-0.5 cursor-pointer"
+              >
+                {showSummaryChips ? 'ဖျောက်မည်' : 'ကြည့်မည်'}
                 {showSummaryChips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </div>
+              </button>
             </div>
 
             {showSummaryChips && (
-              <div className="p-2.5 bg-slate-50 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2">
                 <div className="p-2 bg-emerald-50/90 border border-emerald-200 rounded-lg">
                   <span className="text-[10px] font-bold text-emerald-800 uppercase block">ငွေသွင်း (In)</span>
                   <div className="text-xs sm:text-sm font-black text-emerald-700 truncate">+{formatKs(totalIn)}</div>
@@ -386,15 +395,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   <div className="text-xs sm:text-sm font-black text-red-700 truncate">-{formatKs(totalOut)}</div>
                 </div>
 
-                <div className="p-2 bg-blue-50/90 border border-blue-200 rounded-lg">
-                  <span className="text-[10px] font-bold text-blue-800 uppercase block truncate">Net Cash Flow</span>
-                  <div
-                    className={`text-xs sm:text-sm font-black truncate ${
-                      netAmount >= 0 ? 'text-blue-700' : 'text-amber-700'
-                    }`}
-                  >
-                    {netAmount >= 0 ? `+${formatKs(netAmount)}` : `-${formatKs(Math.abs(netAmount))}`}
-                  </div>
+                <div className="p-2 bg-sky-50/90 border border-sky-200 rounded-lg">
+                  <span className="text-[10px] font-bold text-sky-800 uppercase block truncate">🔄 Wallet လွှဲပြောင်း</span>
+                  <div className="text-xs sm:text-sm font-black text-sky-700 truncate">{formatKs(totalTransferVolume)}</div>
                 </div>
 
                 <div className="p-2 bg-amber-50/90 border border-amber-200 rounded-lg">
@@ -415,7 +418,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             )}
           </div>
 
-          {/* VIEW 1: RESPONSIVE CARDS VIEW (EXCELLENT FOR MOBILE SCROLLING) */}
+          {/* VIEW 1: RESPONSIVE CARDS VIEW */}
           {viewMode === 'card' && (
             <div className="space-y-2.5">
               {filteredData.length === 0 ? (
@@ -425,6 +428,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
               ) : (
                 filteredData.map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
+                  const isTransfer = item.type === 'လွှဲပြောင်း';
                   const actualCash = getActualCashAmount(item);
                   const { cashComm, walletComm } = getCommissionBreakdown(item);
 
@@ -442,12 +446,20 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             </span>
                             <span
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                                isCashOut
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : isCashOut
                                   ? 'bg-red-50 text-red-700 border border-red-200'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               }`}
                             >
-                              {isCashOut ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                              {isTransfer ? (
+                                <ArrowLeftRight className="w-3 h-3" />
+                              ) : isCashOut ? (
+                                <ArrowUpRight className="w-3 h-3" />
+                              ) : (
+                                <ArrowDownRight className="w-3 h-3" />
+                              )}
                               {item.type}
                             </span>
                           </div>
@@ -480,22 +492,36 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         </div>
                       </div>
 
-                      {/* Middle row: Actual Cash vs Original Amount & Commissions */}
+                      {/* Middle row: Amounts & Commissions */}
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
                         <div>
-                          <span className="text-[10px] text-slate-500 block">လက်ငင်းငွေ:</span>
+                          <span className="text-[10px] text-slate-500 block">
+                            {isTransfer ? 'လွှဲပြောင်းငွေ:' : 'လက်ငင်းငွေ:'}
+                          </span>
                           <span
                             className={`font-black ${
-                              isCashOut ? 'text-red-600' : 'text-slate-900'
+                              isTransfer
+                                ? 'text-sky-700'
+                                : isCashOut
+                                ? 'text-red-600'
+                                : 'text-slate-900'
                             }`}
                           >
-                            {isCashOut ? `- ${actualCash.toLocaleString()}` : `+ ${actualCash.toLocaleString()}`} Ks
+                            {isTransfer
+                              ? formatKs(item.amount)
+                              : isCashOut
+                              ? `- ${actualCash.toLocaleString()} Ks`
+                              : `+ ${actualCash.toLocaleString()} Ks`}
                           </span>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 block">မူလလွှဲငွေ:</span>
-                          <span className="font-semibold text-slate-700">{item.amount.toLocaleString()} Ks</span>
+                          <span className="text-[10px] text-slate-500 block">
+                            {isTransfer ? 'ဝန်ဆောင်ခ/လွှဲခ:' : 'မူလလွှဲငွေ:'}
+                          </span>
+                          <span className="font-semibold text-slate-700">
+                            {isTransfer ? `+${formatKs(item.commission)}` : `${item.amount.toLocaleString()} Ks`}
+                          </span>
                         </div>
 
                         <div>
@@ -516,9 +542,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                       {/* Bottom Row: Accounts Used & Note */}
                       <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] pt-1 border-t border-slate-100">
                         <div className="flex items-center gap-1.5">
-                          <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold">
-                            🏦 {item.walletName}
-                          </span>
+                          {isTransfer ? (
+                            <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold flex items-center gap-1">
+                              🔄 <b>{item.walletName}</b> ➔ <b>{item.targetWalletName || '-'}</b>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold">
+                              🏦 {item.walletName}
+                            </span>
+                          )}
                           <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold">
                             💵 {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                           </span>
@@ -536,7 +568,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
             </div>
           )}
 
-          {/* VIEW 2: FULL TABLE VIEW (WITH HORIZONTAL SCROLL) */}
+          {/* VIEW 2: FULL TABLE VIEW */}
           {viewMode === 'table' && (
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-xs text-left border-collapse min-w-[760px]">
@@ -546,7 +578,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     <th className="p-2.5 whitespace-nowrap">နေ့စွဲ/အချိန်</th>
                     <th className="p-2.5 whitespace-nowrap">ဖောက်သည် အမည်</th>
                     <th className="p-2.5 text-center whitespace-nowrap">အမျိုးအစား</th>
-                    <th className="p-2.5 text-right whitespace-nowrap">လက်ငင်းငွေ (Ks)</th>
+                    <th className="p-2.5 text-right whitespace-nowrap">လက်ငင်း/လွှဲငွေ (Ks)</th>
                     <th className="p-2.5 text-right whitespace-nowrap">မူလလွှဲငွေ (Ks)</th>
                     <th className="p-2.5 text-right whitespace-nowrap bg-amber-50/60 text-amber-900">
                       💵 ငွေသားကော်မရှင်
@@ -554,8 +586,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     <th className="p-2.5 text-right whitespace-nowrap bg-purple-50/60 text-purple-900">
                       📱 Walletကော်မရှင်
                     </th>
-                    <th className="p-2.5 whitespace-nowrap">Wallet</th>
-                    <th className="p-2.5 whitespace-nowrap">ငွေသား</th>
+                    <th className="p-2.5 whitespace-nowrap">Wallet အကောင့်</th>
+                    <th className="p-2.5 whitespace-nowrap">ငွေသား အကောင့်</th>
                     <th className="p-2.5 text-center whitespace-nowrap">လုပ်ဆောင်ချက်</th>
                   </tr>
                 </thead>
@@ -569,6 +601,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   ) : (
                     filteredData.map((item, index) => {
                       const isCashOut = item.type === 'ထုတ်';
+                      const isTransfer = item.type === 'လွှဲပြောင်း';
                       const actualCash = getActualCashAmount(item);
                       const { cashComm, walletComm } = getCommissionBreakdown(item);
 
@@ -585,7 +618,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                           <td className="p-2.5 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                isCashOut
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : isCashOut
                                   ? 'bg-red-50 text-red-700 border border-red-200'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               }`}
@@ -594,13 +629,21 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                             </span>
                           </td>
 
-                          {/* Actual Cash */}
+                          {/* Actual Cash / Transfer */}
                           <td
                             className={`p-2.5 text-right font-bold whitespace-nowrap ${
-                              isCashOut ? 'text-red-600' : 'text-slate-800'
+                              isTransfer
+                                ? 'text-sky-700'
+                                : isCashOut
+                                ? 'text-red-600'
+                                : 'text-slate-800'
                             }`}
                           >
-                            {isCashOut ? `- ${actualCash.toLocaleString()}` : actualCash.toLocaleString()} Ks
+                            {isTransfer
+                              ? formatKs(item.amount)
+                              : isCashOut
+                              ? `- ${actualCash.toLocaleString()} Ks`
+                              : `${actualCash.toLocaleString()} Ks`}
                           </td>
 
                           {/* Original Amount */}
@@ -619,9 +662,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                           </td>
 
                           <td className="p-2.5 text-slate-700 whitespace-nowrap">
-                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">
-                              {item.walletName}
-                            </span>
+                            {isTransfer ? (
+                              <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold text-[10px]">
+                                {item.walletName} ➔ {item.targetWalletName || '-'}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">
+                                {item.walletName}
+                              </span>
+                            )}
                           </td>
 
                           <td className="p-2.5 text-slate-700 whitespace-nowrap">

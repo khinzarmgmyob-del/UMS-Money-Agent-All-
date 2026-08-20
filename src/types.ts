@@ -1,4 +1,4 @@
-export type TransactionType = 'သွင်း' | 'ထုတ်';
+export type TransactionType = 'သွင်း' | 'ထုတ်' | 'လွှဲပြောင်း';
 export type CommissionMode = 'deduct' | 'separate';
 export type CommissionChannel = 'Cash' | 'Wallet';
 
@@ -39,8 +39,9 @@ export interface Transaction {
   commissionChannel?: CommissionChannel; // 'Cash' (ငွေသားထဲဝင်) | 'Wallet' (Wallet ထဲကျန်/လျော့လွှဲ)
   netPayout?: number; // ဖောက်သည်သို့ လက်ငင်းပေးအပ်ငွေ
   phone: string;
-  walletName: string; // e.g. KPay, WaveMoney, CB Pay
-  cashAccountName: string; // e.g. ဆိုင်ရှေ့ငွေပုံး, ကာတာငွေသေတ္တာ
+  walletName: string; // e.g. KPay, WaveMoney, CB Pay (သို့မဟုတ် လွှဲထုတ်မည့် Wallet)
+  targetWalletName?: string; // e.g. WaveMoney, CB Pay (လက်ခံမည့် Wallet - for 'လွှဲပြောင်း')
+  cashAccountName?: string; // e.g. ဆိုင်ရှေ့ငွေပုံး, ကာတာငွေသေတ္တာ
   accountType?: 'Wallet' | 'Cash';
   note?: string;
 }

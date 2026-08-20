@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
-import { X, ArrowDownRight, ArrowUpRight, Check, Coins, Percent, DollarSign, Wallet, Banknote } from 'lucide-react';
+import {
+  X,
+  ArrowDownRight,
+  ArrowUpRight,
+  ArrowLeftRight,
+  Check,
+  Coins,
+  Percent,
+  DollarSign,
+  Wallet,
+  Banknote,
+} from 'lucide-react';
 import { Transaction, TransactionType, WalletItem, CashAccountItem, CommissionMode } from '../types';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs } from '../utils/formatters';
 
@@ -22,9 +33,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [walletName, setWalletName] = useState<string>(wallets[0]?.name || 'KPay');
-  const [cashAccountName, setCashAccountName] = useState<string>(cashAccounts[0]?.name || 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)');
+  const [targetWalletName, setTargetWalletName] = useState<string>(
+    wallets.length > 1 ? wallets[1].name : wallets[0]?.name || 'WaveMoney'
+  );
+  const [cashAccountName, setCashAccountName] = useState<string>(
+    cashAccounts[0]?.name || 'ဆိုင်ရှေ့ငွေပုံး (Counter Box)'
+  );
   const [amount, setAmount] = useState<string>('');
-  const [commission, setCommission] = useState<string>('3000');
+  const [commission, setCommission] = useState<string>(initialType === 'လွှဲပြောင်း' ? '1000' : '3000');
   const [commissionMode, setCommissionMode] = useState<CommissionMode>('deduct'); // Default 'deduct' for cash out
   const [date, setDate] = useState<string>(getTodayFormatted());
   const [time, setTime] = useState<string>(getCurrentTimeFormatted());
@@ -35,12 +51,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const numCommission = parseFloat(commission) || 0;
 
   const isCashOut = type === 'ထုတ်';
+  const isTransfer = type === 'လွှဲပြောင်း';
+  const isCashIn = type === 'သွင်း';
+
   const selectedWallet = wallets.find((w) => w.name === walletName) || wallets[0];
+  const selectedTargetWallet = wallets.find((w) => w.name === targetWalletName) || wallets[1] || wallets[0];
   const selectedCashAccount = cashAccounts.find((c) => c.name === cashAccountName) || cashAccounts[0];
 
   // For Cash Out: Calculate the actual Cash given to customer
-  // If Deduct: Customer gets (amount - commission)
-  // If Separate: Customer gets (amount), and customer gives (commission) separately in cash
   const netCashPayoutToCustomer = isCashOut
     ? commissionMode === 'deduct'
       ? Math.max(0, numAmount - numCommission)
@@ -74,6 +92,11 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       return;
     }
 
+    if (isTransfer && walletName === targetWalletName) {
+      alert('လွှဲထုတ်မည့် Wallet နှင့် လက်ခံမည့် Wallet သည် မတူညီသော အကောင့်များ ဖြစ်ရပါမည်။');
+      return;
+    }
+
     if (isCashOut && commissionMode === 'deduct' && numAmount < numCommission) {
       alert('ကော်မရှင်ခ သည် မူလငွေပမာဏထက် မများနိုင်ပါ။');
       return;
@@ -87,12 +110,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
       amount: numAmount,
       commission: numCommission,
       commissionMode: isCashOut ? commissionMode : undefined,
+      commissionChannel: isTransfer ? 'Cash' : undefined,
       netPayout: isCashOut ? netCashPayoutToCustomer : undefined,
       phone: phone.trim() || '-',
       walletName: walletName,
+      targetWalletName: isTransfer ? targetWalletName : undefined,
       cashAccountName: cashAccountName,
       accountType: 'Wallet',
-      note: note.trim() || undefined,
+      note: note.trim() || (isTransfer ? `${walletName} မှ ${targetWalletName} သို့ လွှဲပြောင်း` : undefined),
     };
 
     onSave(newTx, autoUpdateBalances);
@@ -100,12 +125,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
   // Calculate live preview deltas
   const walletBalanceBefore = selectedWallet ? selectedWallet.balance : 0;
-  const walletBalanceAfter = isCashOut
+  const walletBalanceAfter = isTransfer
+    ? walletBalanceBefore - numAmount
+    : isCashOut
     ? walletBalanceBefore + numAmount // Customer transfers to agent
     : walletBalanceBefore - numAmount; // Agent transfers to customer
 
+  const targetWalletBalanceBefore = selectedTargetWallet ? selectedTargetWallet.balance : 0;
+  const targetWalletBalanceAfter = targetWalletBalanceBefore + numAmount;
+
   const cashBalanceBefore = selectedCashAccount ? selectedCashAccount.balance : 0;
-  const cashBalanceAfter = isCashOut
+  const cashBalanceAfter = isTransfer
+    ? cashBalanceBefore + numCommission // Commission received in cash
+    : isCashOut
     ? commissionMode === 'deduct'
       ? cashBalanceBefore - (numAmount - numCommission)
       : cashBalanceBefore - numAmount + numCommission
@@ -119,14 +151,28 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <div className="flex items-center gap-2.5">
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                isCashOut ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                isTransfer
+                  ? 'bg-sky-50 text-sky-600'
+                  : isCashOut
+                  ? 'bg-red-50 text-red-600'
+                  : 'bg-emerald-50 text-emerald-600'
               }`}
             >
-              {isCashOut ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+              {isTransfer ? (
+                <ArrowLeftRight className="w-5 h-5" />
+              ) : isCashOut ? (
+                <ArrowUpRight className="w-5 h-5" />
+              ) : (
+                <ArrowDownRight className="w-5 h-5" />
+              )}
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-800">
-                {isCashOut ? 'ငွေထုတ် မှတ်တမ်းတင်ရန် (Cash Out)' : 'ငွေသွင်း မှတ်တမ်းတင်ရန် (Cash In)'}
+                {isTransfer
+                  ? 'Wallet ချင်း လွှဲပြောင်းလဲလှယ်ခြင်း (Wallet to Wallet)'
+                  : isCashOut
+                  ? 'ငွေထုတ် မှတ်တမ်းတင်ရန် (Cash Out)'
+                  : 'ငွေသွင်း မှတ်တမ်းတင်ရန် (Cash In)'}
               </h3>
               <p className="text-xs text-slate-400">ဘောက်ချာနှင့် ငွေစာရင်း ထည့်သွင်းခြင်း</p>
             </div>
@@ -139,31 +185,45 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
         </div>
 
-        {/* Type Switcher */}
-        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl mb-5">
+        {/* 3-Way Type Switcher */}
+        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl mb-5 text-xs font-bold">
           <button
             type="button"
             onClick={() => setType('သွင်း')}
-            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-              !isCashOut
+            className={`py-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              isCashIn
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ArrowDownRight className="w-4 h-4" />
-            + ငွေသွင်း (Cash In)
+            <ArrowDownRight className="w-3.5 h-3.5" />
+            + ငွေသွင်း
           </button>
+
           <button
             type="button"
             onClick={() => setType('ထုတ်')}
-            className={`py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
               isCashOut
                 ? 'bg-red-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ArrowUpRight className="w-4 h-4" />
-            - ငွေထုတ် (Cash Out)
+            <ArrowUpRight className="w-3.5 h-3.5" />
+            - ငွေထုတ်
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setType('လွှဲပြောင်း')}
+            className={`py-2.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+              isTransfer
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5" />
+            🔄 Wallet to Wallet
           </button>
         </div>
 
@@ -197,66 +257,141 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
 
-          {/* Account Selections: 1) Wallet Account, 2) Cash Account */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            {/* Wallet Selection */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Wallet className="w-3.5 h-3.5 text-indigo-600" />
-                  {isCashOut ? 'လွှဲဝင်မည့် Wallet' : 'လွှဲပေးမည့် Wallet'}
-                </span>
-              </label>
-              <select
-                value={walletName}
-                onChange={(e) => setWalletName(e.target.value)}
-                className="w-full bg-white border border-slate-300 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
-              >
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.name}>
-                    {w.name} ({formatKs(w.balance)})
-                  </option>
-                ))}
-              </select>
-              {selectedWallet && (
-                <div className="text-[11px] text-slate-500 mt-1">
-                  လက်ကျန်: <span className="font-bold text-indigo-600">{formatKs(selectedWallet.balance)}</span>
+          {/* Account Selections */}
+          {isTransfer ? (
+            /* WALLET TO WALLET ACCOUNT PICKERS */
+            <div className="space-y-3 bg-sky-50/60 p-3.5 rounded-xl border border-sky-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Source Wallet (From) */}
+                <div>
+                  <label className="block text-xs font-bold text-sky-900 mb-1 flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5 text-sky-600" />
+                    လွှဲထုတ်မည့် Wallet (From)
+                  </label>
+                  <select
+                    value={walletName}
+                    onChange={(e) => setWalletName(e.target.value)}
+                    className="w-full bg-white border border-sky-300 focus:border-sky-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+                  >
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.name}>
+                        {w.name} ({formatKs(w.balance)})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedWallet && (
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      လက်ကျန်: <span className="font-bold text-sky-700">{formatKs(selectedWallet.balance)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Cash Account Selection */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1">
-                  <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-                  {isCashOut ? 'ငွေသားထုတ်ပေးမည့် အကောင့်' : 'ငွေသားလက်ခံမည့် အကောင့်'}
-                </span>
-              </label>
-              <select
-                value={cashAccountName}
-                onChange={(e) => setCashAccountName(e.target.value)}
-                className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
-              >
-                {cashAccounts.map((c) => (
-                  <option key={c.id} value={c.name}>
-                    {c.name} ({formatKs(c.balance)})
-                  </option>
-                ))}
-              </select>
-              {selectedCashAccount && (
-                <div className="text-[11px] text-slate-500 mt-1">
-                  လက်ကျန်: <span className="font-bold text-emerald-600">{formatKs(selectedCashAccount.balance)}</span>
+                {/* Target Wallet (To) */}
+                <div>
+                  <label className="block text-xs font-bold text-indigo-900 mb-1 flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                    လက်ခံမည့် Wallet (To)
+                  </label>
+                  <select
+                    value={targetWalletName}
+                    onChange={(e) => setTargetWalletName(e.target.value)}
+                    className="w-full bg-white border border-indigo-300 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+                  >
+                    {wallets.map((w) => (
+                      <option key={w.id} value={w.name}>
+                        {w.name} ({formatKs(w.balance)})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedTargetWallet && (
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      လက်ကျန်: <span className="font-bold text-indigo-700">{formatKs(selectedTargetWallet.balance)}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Cash Account for Commission Fee */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                  ဝန်ဆောင်ခ/ကော်မရှင် ရငွေထည့်မည့် ငွေသားအကောင့်
+                </label>
+                <select
+                  value={cashAccountName}
+                  onChange={(e) => setCashAccountName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+                >
+                  {cashAccounts.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name} ({formatKs(c.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
+          ) : (
+            /* STANDARD CASH IN / OUT ACCOUNT PICKERS */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              {/* Wallet Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5 text-indigo-600" />
+                    {isCashOut ? 'လွှဲဝင်မည့် Wallet' : 'လွှဲပေးမည့် Wallet'}
+                  </span>
+                </label>
+                <select
+                  value={walletName}
+                  onChange={(e) => setWalletName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 focus:border-indigo-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+                >
+                  {wallets.map((w) => (
+                    <option key={w.id} value={w.name}>
+                      {w.name} ({formatKs(w.balance)})
+                    </option>
+                  ))}
+                </select>
+                {selectedWallet && (
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    လက်ကျန်: <span className="font-bold text-indigo-600">{formatKs(selectedWallet.balance)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Cash Account Selection */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                    {isCashOut ? 'ငွေသားထုတ်ပေးမည့် အကောင့်' : 'ငွေသားလက်ခံမည့် အကောင့်'}
+                  </span>
+                </label>
+                <select
+                  value={cashAccountName}
+                  onChange={(e) => setCashAccountName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none"
+                >
+                  {cashAccounts.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name} ({formatKs(c.balance)})
+                    </option>
+                  ))}
+                </select>
+                {selectedCashAccount && (
+                  <div className="text-[11px] text-slate-500 mt-1">
+                    လက်ကျန်: <span className="font-bold text-emerald-600">{formatKs(selectedCashAccount.balance)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Amount & Presets */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                မူလ ငွေပမာဏ (Ks) <span className="text-red-500">*</span>
+                {isTransfer ? 'လွှဲပြောင်းမည့် ငွေပမာဏ (Ks)' : 'မူလ ငွေပမာဏ (Ks)'} <span className="text-red-500">*</span>
               </label>
               <span className="text-xs text-slate-500 font-medium">
                 {numAmount > 0 ? formatKs(numAmount) : ''}
@@ -315,7 +450,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                ကော်မရှင်ခ (Ks)
+                {isTransfer ? 'လွှဲခ / ဝန်ဆောင်ခ (Ks)' : 'ကော်မရှင်ခ (Ks)'}
               </label>
               <span className="text-xs text-emerald-600 font-bold">
                 +{formatKs(numCommission)}
@@ -333,6 +468,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
             {/* Quick Commission Calculator */}
             <div className="flex flex-wrap gap-1.5 mt-2">
+              <button
+                type="button"
+                onClick={() => setCommission('0')}
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium cursor-pointer"
+              >
+                0 Ks
+              </button>
               <button
                 type="button"
                 onClick={() => setCommission('1000')}
@@ -353,13 +495,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
               >
                 3,000
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommission('5000')}
-                className="px-2 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium cursor-pointer"
-              >
-                5,000
               </button>
               <button
                 type="button"
@@ -497,7 +632,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1">မှတ်ချက် (Note)</label>
             <input
               type="text"
-              placeholder="ဥပမာ - ရွှေဘိုငွေလွှဲ / Wave Acc သို့"
+              placeholder={isTransfer ? 'ဥပမာ - KPay မှ Wave သို့ လဲလှယ်ခြင်း' : 'ဥပမာ - ရွှေဘိုငွေလွှဲ'}
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none"
@@ -518,22 +653,55 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
 
             {autoUpdateBalances && numAmount > 0 && (
               <div className="text-xs text-indigo-700/90 pl-6 space-y-1.5 pt-1 border-t border-indigo-100">
-                <div className="flex items-center justify-between">
-                  <span>
-                    📱 <b>{walletName}</b> ({isCashOut ? 'တိုးမည် +' : 'နုတ်မည် -'}):
-                  </span>
-                  <span className="font-mono">
-                    {formatKs(walletBalanceBefore)} → <b className="text-indigo-950">{formatKs(walletBalanceAfter)}</b>
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>
-                    💵 <b>{cashAccountName}</b> ({isCashOut ? 'နုတ်မည် -' : 'တိုးမည် +'}):
-                  </span>
-                  <span className="font-mono">
-                    {formatKs(cashBalanceBefore)} → <b className="text-indigo-950">{formatKs(cashBalanceAfter)}</b>
-                  </span>
-                </div>
+                {isTransfer ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>
+                        📤 <b>{walletName}</b> (လွှဲထုတ် -):
+                      </span>
+                      <span className="font-mono">
+                        {formatKs(walletBalanceBefore)} → <b className="text-indigo-950">{formatKs(walletBalanceAfter)}</b>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>
+                        📥 <b>{targetWalletName}</b> (လက်ခံ +):
+                      </span>
+                      <span className="font-mono">
+                        {formatKs(targetWalletBalanceBefore)} → <b className="text-indigo-950">{formatKs(targetWalletBalanceAfter)}</b>
+                      </span>
+                    </div>
+                    {numCommission > 0 && (
+                      <div className="flex items-center justify-between text-emerald-800">
+                        <span>
+                          💵 <b>{cashAccountName}</b> (ကော်မရှင် +):
+                        </span>
+                        <span className="font-mono">
+                          {formatKs(cashBalanceBefore)} → <b className="text-emerald-950">{formatKs(cashBalanceAfter)}</b>
+                        </span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span>
+                        📱 <b>{walletName}</b> ({isCashOut ? 'တိုးမည် +' : 'နုတ်မည် -'}):
+                      </span>
+                      <span className="font-mono">
+                        {formatKs(walletBalanceBefore)} → <b className="text-indigo-950">{formatKs(walletBalanceAfter)}</b>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>
+                        💵 <b>{cashAccountName}</b> ({isCashOut ? 'နုတ်မည် -' : 'တိုးမည် +'}):
+                      </span>
+                      <span className="font-mono">
+                        {formatKs(cashBalanceBefore)} → <b className="text-indigo-950">{formatKs(cashBalanceAfter)}</b>
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -550,12 +718,14 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             <button
               type="submit"
               className={`flex-1 py-3 text-white rounded-xl text-sm font-bold shadow-md transition-all cursor-pointer ${
-                isCashOut
+                isTransfer
+                  ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20'
+                  : isCashOut
                   ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
               }`}
             >
-              သိမ်းဆည်းမည် ✓
+              {isTransfer ? 'လွှဲပြောင်း သိမ်းဆည်းမည် ✓' : 'သိမ်းဆည်းမည် ✓'}
             </button>
           </div>
         </form>

@@ -14,6 +14,9 @@ import {
   Table as TableIcon,
   ChevronDown,
   ChevronUp,
+  ArrowLeftRight,
+  ArrowDownRight,
+  ArrowUpRight,
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem, ShopProfile } from '../types';
 import { getTodayFormatted, formatKs, formatLakh } from '../utils/formatters';
@@ -53,6 +56,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
       item.customerName.toLowerCase().includes(q) ||
       item.phone.toLowerCase().includes(q) ||
       item.walletName.toLowerCase().includes(q) ||
+      (item.targetWalletName && item.targetWalletName.toLowerCase().includes(q)) ||
       (item.cashAccountName && item.cashAccountName.toLowerCase().includes(q)) ||
       (item.note && item.note.toLowerCase().includes(q))
     );
@@ -71,6 +75,9 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
   // Cash Account deltas for filtered transactions
   const getCashDeltaForTx = (tx: Transaction, cashAccName: string): number => {
     if (tx.cashAccountName !== cashAccName) return 0;
+    if (tx.type === 'လွှဲပြောင်း') {
+      return tx.commission || 0; // Commission collected in cash
+    }
     const isCashOut = tx.type === 'ထုတ်';
     if (!isCashOut) {
       return tx.amount + (tx.commission || 0);
@@ -80,6 +87,11 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
   // Wallet deltas for filtered transactions
   const getWalletDeltaForTx = (tx: Transaction, walletName: string): number => {
+    if (tx.type === 'လွှဲပြောင်း') {
+      if (tx.walletName === walletName) return -tx.amount;
+      if (tx.targetWalletName === walletName) return tx.amount;
+      return 0;
+    }
     if (tx.walletName !== walletName) return 0;
     const isCashOut = tx.type === 'ထုတ်';
     return isCashOut ? tx.amount : -tx.amount;
@@ -105,7 +117,10 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
     const rows = sortedTransactions.map((tx, idx) => {
       const isCashOut = tx.type === 'ထုတ်';
-      const desc = isCashOut
+      const isTransfer = tx.type === 'လွှဲပြောင်း';
+      const desc = isTransfer
+        ? `Wallet to Wallet (${tx.walletName} -> ${tx.targetWalletName || '-'})`
+        : isCashOut
         ? `ငွေထုတ် (${tx.walletName} -> ${tx.cashAccountName})`
         : `ငွေသွင်း (${tx.cashAccountName} -> ${tx.walletName})`;
 
@@ -158,16 +173,16 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
             </div>
             <div className="min-w-0">
               <h3 className="text-sm sm:text-base md:text-lg font-black text-slate-900 truncate">
-                🌐 စုစုပေါင်း ငွေစာရင်းအားလုံးလက်ကျန် စာရင်းချုပ်
+                စုစုပေါင်း ငွေစာရင်းအားလုံး လက်ကျန် အသေးစိတ် ရှင်းတမ်း
               </h3>
               <p className="text-[11px] text-slate-400">
-                ငွေသားနှင့် Wallet အကောင့်များ စာရင်း ({sortedTransactions.length} ခု)
+                ငွေသား နှင့် Wallet အကောင့်အားလုံး၏ အပြောင်းအလဲမှတ်တမ်း
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* View Mode Toggle: Cards vs Table */}
+            {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg">
               <button
                 onClick={() => setViewMode('card')}
@@ -198,6 +213,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
             <button
               onClick={handleExportCSV}
               className="p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+              title="CSV ဒေါင်းလုဒ်"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">CSV</span>
@@ -205,6 +221,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
             <button
               onClick={handlePrint}
               className="p-1.5 sm:px-2.5 sm:py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+              title="Print ထုတ်မည်"
             >
               <Printer className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Print</span>
@@ -218,29 +235,27 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
           </div>
         </div>
 
-        {/* Scrollable Body */}
+        {/* Scrollable Container */}
         <div className="overflow-y-auto flex-1 pr-0.5 space-y-3">
-          {/* Top Summary 4 Cards (Collapsible) */}
-          <div className="border border-slate-200/80 rounded-xl overflow-hidden">
-            <div
-              onClick={() => setShowSummaryChips(!showSummaryChips)}
-              className="px-3 py-1.5 bg-slate-100/70 hover:bg-slate-100 flex items-center justify-between cursor-pointer transition-colors"
-            >
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                📊 လက်ကျန်ငွေနှင့် မတည်ငွေ အကျဉ်းချုပ် (Capital Overview)
-              </span>
-              <div className="flex items-center gap-1 text-xs text-slate-500 font-medium">
-                <span>{showSummaryChips ? 'ခေါက်သိမ်းမည်' : 'ဖွင့်ကြည့်မည်'}</span>
+          {/* Summary Strip */}
+          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-2.5">
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
+              <span className="text-[11px] font-bold text-slate-700">📌 လက်ရှိ လက်ကျန်ငွေများ အကျဉ်းချုပ်</span>
+              <button
+                onClick={() => setShowSummaryChips(!showSummaryChips)}
+                className="text-[11px] text-indigo-600 font-semibold flex items-center gap-0.5 cursor-pointer"
+              >
+                {showSummaryChips ? 'ဖျောက်မည်' : 'ကြည့်မည်'}
                 {showSummaryChips ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </div>
+              </button>
             </div>
 
             {showSummaryChips && (
-              <div className="p-2.5 bg-slate-50 grid grid-cols-2 lg:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
                 <div className="p-2.5 bg-emerald-50/90 border border-emerald-200 rounded-xl">
                   <div className="text-[10px] font-bold text-emerald-800 flex items-center gap-1">
                     <Banknote className="w-3 h-3" />
-                    💵 ငွေသားပေါင်း ({cashAccounts.length} ခု)
+                    💵 ငွေသားပေါင်း ({cashAccounts.length} နေရာ)
                   </div>
                   <div className="text-sm sm:text-base font-black text-emerald-700 mt-0.5">
                     {formatKs(totalCashBalance)}
@@ -361,7 +376,8 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
               ) : (
                 sortedTransactions.map((item, index) => {
                   const isCashOut = item.type === 'ထုတ်';
-                  const cashDelta = getCashDeltaForTx(item, item.cashAccountName);
+                  const isTransfer = item.type === 'လွှဲပြောင်း';
+                  const cashDelta = getCashDeltaForTx(item, item.cashAccountName || '');
                   const walletDelta = getWalletDeltaForTx(item, item.walletName);
 
                   return (
@@ -377,12 +393,14 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
                             </span>
                             <span
                               className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
-                                isCashOut
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  : isCashOut
                                   ? 'bg-red-50 text-red-700 border border-red-200'
                                   : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               }`}
                             >
-                              {isCashOut ? 'ငွေထုတ် (Out)' : 'ငွေသွင်း (In)'}
+                              {isTransfer ? '🔄 Wallet to Wallet' : isCashOut ? 'ငွေထုတ် (Out)' : 'ငွေသွင်း (In)'}
                             </span>
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -399,23 +417,47 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
                       {/* Account balance changes */}
                       <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
-                        <div>
-                          <span className="text-[10px] text-slate-500 block truncate">
-                            💵 {item.cashAccountName || 'ငွေသားအကောင့်'}:
-                          </span>
-                          <span className={`font-black ${cashDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-                            {cashDelta >= 0 ? `+${formatKs(cashDelta)}` : formatKs(cashDelta)}
-                          </span>
-                        </div>
+                        {isTransfer ? (
+                          <>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                📤 {item.walletName} (လွှဲထုတ်):
+                              </span>
+                              <span className="font-black text-red-600">
+                                -{formatKs(item.amount)}
+                              </span>
+                            </div>
 
-                        <div>
-                          <span className="text-[10px] text-slate-500 block truncate">
-                            🏦 {item.walletName || 'Wallet'}:
-                          </span>
-                          <span className={`font-black ${walletDelta >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
-                            {walletDelta >= 0 ? `+${formatKs(walletDelta)}` : formatKs(walletDelta)}
-                          </span>
-                        </div>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                📥 {item.targetWalletName || 'Wallet'} (လက်ခံ):
+                              </span>
+                              <span className="font-black text-indigo-700">
+                                +{formatKs(item.amount)}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                💵 {item.cashAccountName || 'ငွေသားအကောင့်'}:
+                              </span>
+                              <span className={`font-black ${cashDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                                {cashDelta >= 0 ? `+${formatKs(cashDelta)}` : formatKs(cashDelta)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] text-slate-500 block truncate">
+                                🏦 {item.walletName || 'Wallet'}:
+                              </span>
+                              <span className={`font-black ${walletDelta >= 0 ? 'text-indigo-700' : 'text-red-600'}`}>
+                                {walletDelta >= 0 ? `+${formatKs(walletDelta)}` : formatKs(walletDelta)}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
 
                       {item.note && (
@@ -430,7 +472,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
             </div>
           )}
 
-          {/* VIEW 2: FULL MATRIX TABLE (WITH HORIZONTAL SCROLL) */}
+          {/* VIEW 2: FULL MATRIX TABLE */}
           {viewMode === 'table' && (
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
               <table className="w-full text-xs text-left border-collapse min-w-[850px]">
@@ -452,225 +494,126 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
                       🏦 Wallet အကောင့်များ
                     </th>
                     <th colSpan={2} className="p-1.5 text-center text-amber-900 bg-amber-100/70 font-bold">
-                      📈 ကော်မရှင်ခ
+                      အခြား
                     </th>
                   </tr>
-
                   <tr>
-                    <th className="p-2 whitespace-nowrap border-r border-slate-200">စဉ်</th>
-                    <th className="p-2 whitespace-nowrap border-r border-slate-200">နေ့စွဲ/အချိန်</th>
-                    <th className="p-2 whitespace-nowrap border-r border-slate-200">ဖောက်သည်</th>
-                    <th className="p-2 whitespace-nowrap border-r border-slate-300">ဖော်ပြချက်</th>
+                    <th className="p-2 whitespace-nowrap">စဉ်</th>
+                    <th className="p-2 whitespace-nowrap">ရက်စွဲ/အချိန်</th>
+                    <th className="p-2 whitespace-nowrap">ဖောက်သည်</th>
+                    <th className="p-2 whitespace-nowrap border-r border-slate-300">အမျိုးအစား</th>
 
+                    {/* Cash Account Columns */}
                     {cashAccounts.map((c) => (
                       <th
-                        key={`h-c-${c.id}`}
-                        className="p-2 text-right whitespace-nowrap bg-emerald-50/70 text-emerald-900 border-r border-slate-200"
+                        key={`th-c-${c.id}`}
+                        className="p-2 text-right whitespace-nowrap bg-emerald-50/50 text-emerald-900 font-bold"
                       >
-                        <div>{c.name}</div>
-                        <div className="text-[9px] font-normal text-emerald-700">{formatKs(c.balance)}</div>
+                        {c.name}
                       </th>
                     ))}
 
-                    {wallets.map((w) => (
+                    {/* Wallet Columns */}
+                    {wallets.map((w, wIdx) => (
                       <th
-                        key={`h-w-${w.id}`}
-                        className="p-2 text-right whitespace-nowrap bg-indigo-50/70 text-indigo-900 border-r border-slate-200"
+                        key={`th-w-${w.id}`}
+                        className={`p-2 text-right whitespace-nowrap bg-indigo-50/50 text-indigo-900 font-bold ${
+                          wIdx === wallets.length - 1 ? 'border-r border-slate-300' : ''
+                        }`}
                       >
-                        <div>{w.name}</div>
-                        <div className="text-[9px] font-normal text-indigo-700">{formatKs(w.balance)}</div>
+                        {w.name}
                       </th>
                     ))}
 
-                    <th className="p-2 text-right whitespace-nowrap bg-amber-50/70 text-amber-900 border-r border-slate-200">
-                      ကော်မရှင်
-                    </th>
+                    <th className="p-2 text-right whitespace-nowrap bg-amber-50 text-amber-900">ကော်မရှင်</th>
                     <th className="p-2 whitespace-nowrap">မှတ်ချက်</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-slate-200">
-                  {/* Row 0: Reference Balances */}
-                  <tr className="bg-slate-50/90 font-semibold border-b-2 border-slate-300 text-slate-800 text-[11px]">
-                    <td className="p-2 text-slate-400 font-bold border-r border-slate-200">★</td>
-                    <td className="p-2 whitespace-nowrap border-r border-slate-200 text-slate-500 font-mono">
-                      မတည်ငွေ
-                    </td>
-                    <td className="p-2 font-black text-slate-900 whitespace-nowrap border-r border-slate-200">
-                      📌 လက်ရှိလက်ကျန်
-                    </td>
-                    <td className="p-2 text-slate-600 whitespace-nowrap border-r border-slate-300">
-                      အကောင့်အလိုက် လက်ကျန်
-                    </td>
-
-                    {cashAccounts.map((c) => (
-                      <td
-                        key={`init-c-${c.id}`}
-                        className="p-2 text-right font-black text-emerald-800 bg-emerald-50/40 border-r border-slate-200 whitespace-nowrap"
-                      >
-                        {formatKs(c.balance)}
-                      </td>
-                    ))}
-
-                    {wallets.map((w) => (
-                      <td
-                        key={`init-w-${w.id}`}
-                        className="p-2 text-right font-black text-indigo-800 bg-indigo-50/40 border-r border-slate-200 whitespace-nowrap"
-                      >
-                        {formatKs(w.balance)}
-                      </td>
-                    ))}
-
-                    <td className="p-2 text-right font-black text-amber-800 bg-amber-50/40 border-r border-slate-200 whitespace-nowrap">
-                      +{formatKs(totalCommission)}
-                    </td>
-                    <td className="p-2 text-slate-500 text-[10px] whitespace-nowrap">
-                      စုစုပေါင်း: <b className="text-slate-900">{formatKs(grandTotalBalance)}</b>
-                    </td>
-                  </tr>
-
                   {sortedTransactions.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={4 + cashAccounts.length + wallets.length + 2}
-                        className="p-6 text-center text-slate-400 font-medium"
-                      >
+                      <td colSpan={6 + cashAccounts.length + wallets.length} className="p-6 text-center text-slate-400">
                         ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော ဒေတာ မရှိပါ။
                       </td>
                     </tr>
                   ) : (
-                    sortedTransactions.map((item, index) => {
-                      const isCashOut = item.type === 'ထုတ်';
-                      const desc = isCashOut
-                        ? `ငွေထုတ် [${item.walletName} -> ${item.cashAccountName}]`
-                        : `ငွေသွင်း [${item.cashAccountName} -> ${item.walletName}]`;
+                    sortedTransactions.map((tx, idx) => {
+                      const isCashOut = tx.type === 'ထုတ်';
+                      const isTransfer = tx.type === 'လွှဲပြောင်း';
 
                       return (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-2 text-slate-500 font-medium border-r border-slate-200">{index + 1}</td>
-                          <td className="p-2 text-slate-600 whitespace-nowrap border-r border-slate-200">
-                            <div className="font-semibold text-slate-800">{item.date}</div>
-                            {item.time && <div className="text-[9px] text-slate-400">{item.time}</div>}
+                        <tr key={`matrix-row-${tx.id}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-2 text-slate-500 font-medium">{idx + 1}</td>
+                          <td className="p-2 whitespace-nowrap text-slate-600">
+                            <div>{tx.date}</div>
+                            {tx.time && <div className="text-[10px] text-slate-400">{tx.time}</div>}
                           </td>
-                          <td className="p-2 font-bold text-slate-900 whitespace-nowrap border-r border-slate-200">
-                            {item.customerName}
-                          </td>
+                          <td className="p-2 font-bold text-slate-800 whitespace-nowrap">{tx.customerName}</td>
                           <td className="p-2 whitespace-nowrap border-r border-slate-300">
                             <span
-                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                isCashOut
-                                  ? 'bg-red-50 text-red-700 border border-red-200'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isTransfer
+                                  ? 'bg-sky-50 text-sky-700'
+                                  : isCashOut
+                                  ? 'bg-red-50 text-red-700'
+                                  : 'bg-emerald-50 text-emerald-700'
                               }`}
                             >
-                              {desc}
+                              {isTransfer ? '🔄 လွှဲပြောင်း' : isCashOut ? 'ထုတ်' : 'သွင်း'}
                             </span>
                           </td>
 
+                          {/* Cash Account Deltas */}
                           {cashAccounts.map((c) => {
-                            const delta = getCashDeltaForTx(item, c.name);
+                            const delta = getCashDeltaForTx(tx, c.name);
                             return (
                               <td
-                                key={`row-${item.id}-c-${c.id}`}
-                                className={`p-2 text-right font-bold whitespace-nowrap border-r border-slate-200 ${
+                                key={`td-c-${tx.id}-${c.id}`}
+                                className={`p-2 text-right font-mono whitespace-nowrap ${
                                   delta > 0
-                                    ? 'text-emerald-700 bg-emerald-50/20'
+                                    ? 'text-emerald-700 font-bold bg-emerald-50/20'
                                     : delta < 0
-                                    ? 'text-red-600 bg-red-50/20'
+                                    ? 'text-red-600 font-bold bg-red-50/20'
                                     : 'text-slate-300'
                                 }`}
                               >
-                                {delta > 0
-                                  ? `+${delta.toLocaleString()}`
-                                  : delta < 0
-                                  ? `${delta.toLocaleString()}`
-                                  : '-'}
+                                {delta !== 0 ? (delta > 0 ? `+${formatKs(delta)}` : formatKs(delta)) : '-'}
                               </td>
                             );
                           })}
 
-                          {wallets.map((w) => {
-                            const delta = getWalletDeltaForTx(item, w.name);
+                          {/* Wallet Deltas */}
+                          {wallets.map((w, wIdx) => {
+                            const delta = getWalletDeltaForTx(tx, w.name);
                             return (
                               <td
-                                key={`row-${item.id}-w-${w.id}`}
-                                className={`p-2 text-right font-bold whitespace-nowrap border-r border-slate-200 ${
+                                key={`td-w-${tx.id}-${w.id}`}
+                                className={`p-2 text-right font-mono whitespace-nowrap ${
+                                  wIdx === wallets.length - 1 ? 'border-r border-slate-300' : ''
+                                } ${
                                   delta > 0
-                                    ? 'text-indigo-700 bg-indigo-50/20'
+                                    ? 'text-indigo-700 font-bold bg-indigo-50/20'
                                     : delta < 0
-                                    ? 'text-red-600 bg-red-50/20'
+                                    ? 'text-red-600 font-bold bg-red-50/20'
                                     : 'text-slate-300'
                                 }`}
                               >
-                                {delta > 0
-                                  ? `+${delta.toLocaleString()}`
-                                  : delta < 0
-                                  ? `${delta.toLocaleString()}`
-                                  : '-'}
+                                {delta !== 0 ? (delta > 0 ? `+${formatKs(delta)}` : formatKs(delta)) : '-'}
                               </td>
                             );
                           })}
 
-                          <td className="p-2 text-right font-bold whitespace-nowrap text-amber-800 bg-amber-50/30 border-r border-slate-200">
-                            {item.commission > 0 ? `+${item.commission.toLocaleString()}` : '-'}
+                          <td className="p-2 text-right font-bold text-amber-800 bg-amber-50/40 whitespace-nowrap">
+                            {tx.commission > 0 ? `+${formatKs(tx.commission)}` : '-'}
                           </td>
-
-                          <td className="p-2 text-slate-500 whitespace-nowrap text-[10px]">{item.note || '-'}</td>
+                          <td className="p-2 text-slate-500 italic text-[11px] truncate max-w-[150px]">
+                            {tx.note || '-'}
+                          </td>
                         </tr>
                       );
                     })
                   )}
                 </tbody>
-
-                <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-800 sticky bottom-0 z-20">
-                  <tr>
-                    <td colSpan={4} className="p-2.5 text-right border-r border-slate-300">
-                      စုစုပေါင်း Net Impact:
-                    </td>
-
-                    {cashAccounts.map((c) => {
-                      const sumDelta = sortedTransactions.reduce(
-                        (sum, tx) => sum + getCashDeltaForTx(tx, c.name),
-                        0
-                      );
-                      return (
-                        <td
-                          key={`tot-c-${c.id}`}
-                          className={`p-2.5 text-right whitespace-nowrap border-r border-slate-200 ${
-                            sumDelta >= 0 ? 'text-emerald-700' : 'text-red-600'
-                          }`}
-                        >
-                          {sumDelta >= 0 ? `+${formatKs(sumDelta)}` : formatKs(sumDelta)}
-                        </td>
-                      );
-                    })}
-
-                    {wallets.map((w) => {
-                      const sumDelta = sortedTransactions.reduce(
-                        (sum, tx) => sum + getWalletDeltaForTx(tx, w.name),
-                        0
-                      );
-                      return (
-                        <td
-                          key={`tot-w-${w.id}`}
-                          className={`p-2.5 text-right whitespace-nowrap border-r border-slate-200 ${
-                            sumDelta >= 0 ? 'text-indigo-700' : 'text-red-600'
-                          }`}
-                        >
-                          {sumDelta >= 0 ? `+${formatKs(sumDelta)}` : formatKs(sumDelta)}
-                        </td>
-                      );
-                    })}
-
-                    <td className="p-2.5 text-right whitespace-nowrap text-amber-800 bg-amber-100/50 border-r border-slate-200">
-                      +{formatKs(totalCommission)}
-                    </td>
-
-                    <td className="p-2.5 whitespace-nowrap text-indigo-900 text-[10px]">
-                      လက်ကျန်: <b>{formatKs(grandTotalBalance)}</b>
-                    </td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
           )}

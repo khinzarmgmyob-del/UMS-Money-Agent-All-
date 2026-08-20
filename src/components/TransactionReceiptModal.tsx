@@ -30,10 +30,17 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
   })();
 
   const isCashOut = transaction.type === 'ထုတ်';
+  const isTransfer = transaction.type === 'လွှဲပြောင်း';
   const isDeducted = transaction.commissionMode === 'deduct';
   const netCash = transaction.netPayout !== undefined
     ? transaction.netPayout
     : (isCashOut && isDeducted ? (transaction.amount - transaction.commission) : transaction.amount);
+
+  const typeLabel = isTransfer
+    ? 'Wallet to Wallet လွှဲပြောင်း'
+    : transaction.type === 'သွင်း'
+    ? 'ငွေသွင်း (Cash In)'
+    : 'ငွေထုတ် (Cash Out)';
 
   const receiptText = `
 === ${shopProfile.shopName || 'Money Agent POS'} ===
@@ -41,13 +48,11 @@ ${shopProfile.address ? `လိပ်စာ: ${shopProfile.address}\n` : ''}${sh
 ပြေစာအမှတ်: #${transaction.id}
 နေ့စွဲ / အချိန်: ${transaction.date} ${transaction.time || ''}
 ဖောက်သည်အမည်: ${transaction.customerName}
-အမျိုးအစား: ${transaction.type === 'သွင်း' ? 'ငွေသွင်း (Cash In)' : 'ငွေထုတ် (Cash Out)'}
-မူလငွေပမာဏ: ${transaction.amount.toLocaleString()} Ks
-ကော်မရှင်ခ: ${transaction.commission.toLocaleString()} Ks ${isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
+အမျိုးအစား: ${typeLabel}
+${isTransfer ? `လွှဲထုတ်သည့် Wallet: ${transaction.walletName}\nလက်ခံသည့် Wallet: ${transaction.targetWalletName || '-'}\n` : `Wallet အကောင့်: ${transaction.walletName}\n`}ငွေပမာဏ: ${transaction.amount.toLocaleString()} Ks
+ကော်မရှင်/ဝန်ဆောင်ခ: ${transaction.commission.toLocaleString()} Ks ${isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
 ${isCashOut ? `ဖောက်သည်သို့ အမှန်ပေးငွေ: ${netCash.toLocaleString()} Ks\n` : ''}ဖုန်းနံပါတ်: ${transaction.phone}
-Wallet အကောင့်: ${transaction.walletName}
-ငွေသားအကောင့်: ${transaction.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
-${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}================================
+${transaction.cashAccountName ? `ငွေသားအကောင့်: ${transaction.cashAccountName}\n` : ''}${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}================================
 အဆင်ပြေစွာ အသုံးပြုနိုင်ပါစေ။ ကျေးဇူးတင်ပါသည်။
   `.trim();
 
@@ -67,7 +72,9 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-lg flex items-center justify-center">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+              isTransfer ? 'bg-sky-50 text-sky-600' : isCashOut ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+            }`}>
               <FileCheck className="w-4 h-4" />
             </div>
             <h3 className="text-base font-bold text-slate-800">ငွေလွှဲ/ငွေထုတ် ပြေစာ (Receipt)</h3>
@@ -111,7 +118,7 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
               </div>
             )}
             <div className="text-[10px] text-indigo-600 font-bold uppercase tracking-wider pt-0.5">
-              ငွေလွှဲ / ငွေထုတ် ပြေစာလက်မှတ်
+              {isTransfer ? '🔄 Wallet to Wallet လွှဲပြောင်း ပြေစာ' : 'ငွေလွှဲ / ငွေထုတ် ပြေစာလက်မှတ်'}
             </div>
           </div>
 
@@ -133,29 +140,48 @@ ${transaction.note ? `မှတ်ချက်: ${transaction.note}\n` : ''}====
           </div>
           <div className="flex justify-between">
             <span className="text-slate-500">အမျိုးအစား:</span>
-            <span className={`font-bold ${transaction.type === 'သွင်း' ? 'text-emerald-600' : 'text-red-600'}`}>
-              {transaction.type === 'သွင်း' ? 'ငွေသွင်း (Cash In)' : 'ငွေထုတ် (Cash Out)'}
+            <span className={`font-bold ${
+              isTransfer ? 'text-sky-600' : transaction.type === 'သွင်း' ? 'text-emerald-600' : 'text-red-600'
+            }`}>
+              {typeLabel}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">အသုံးပြုသည့် Wallet:</span>
-            <span className="font-semibold text-slate-800">{transaction.walletName}</span>
-          </div>
+
+          {isTransfer ? (
+            <>
+              <div className="flex justify-between">
+                <span className="text-slate-500">လွှဲထုတ်သည့် Wallet (From):</span>
+                <span className="font-bold text-sky-700">{transaction.walletName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">လက်ခံသည့် Wallet (To):</span>
+                <span className="font-bold text-indigo-700">{transaction.targetWalletName || '-'}</span>
+              </div>
+            </>
+          ) : (
+            <div className="flex justify-between">
+              <span className="text-slate-500">အသုံးပြုသည့် Wallet:</span>
+              <span className="font-semibold text-slate-800">{transaction.walletName}</span>
+            </div>
+          )}
+
           {transaction.cashAccountName && (
             <div className="flex justify-between">
-              <span className="text-slate-500">ငွေသားအကောင့်:</span>
+              <span className="text-slate-500">
+                {isTransfer ? 'ကော်မရှင်ဝင် ငွေသားအကောင့်:' : 'ငွေသားအကောင့်:'}
+              </span>
               <span className="font-semibold text-slate-800">{transaction.cashAccountName}</span>
             </div>
           )}
 
           <div className="pt-2 border-t border-dashed border-slate-300">
             <div className="flex justify-between text-sm py-1 font-bold">
-              <span>မူလငွေ ပမာဏ:</span>
+              <span>{isTransfer ? 'လွှဲပြောင်းငွေ ပမာဏ:' : 'မူလငွေ ပမာဏ:'}</span>
               <span className="text-slate-950">{formatKs(transaction.amount)}</span>
             </div>
             <div className="flex justify-between text-xs py-0.5 text-emerald-700">
               <span>
-                ဝန်ဆောင်ခ (ကော်မရှင်):{' '}
+                {isTransfer ? 'လွှဲခ / ဝန်ဆောင်ခ:' : 'ဝန်ဆောင်ခ (ကော်မရှင်):'}{' '}
                 {isCashOut ? (isDeducted ? '(မူလငွေမှ နုတ်ယူ)' : '(သက်သက်ပေး)') : ''}
               </span>
               <span>+{formatKs(transaction.commission)}</span>
