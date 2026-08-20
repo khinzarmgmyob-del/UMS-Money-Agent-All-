@@ -36,14 +36,6 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const [date, setDate] = useState(getTodayFormatted());
   const [accountNumber, setAccountNumber] = useState('');
 
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   const handleStartEdit = (w: WalletItem) => {
     setEditingWallet(w);
     setName(w.name);
@@ -90,11 +82,13 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-white">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
               <Wallet className="w-5 h-5" />
@@ -114,11 +108,8 @@ export const WalletModal: React.FC<WalletModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5">
-          <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-            လက်ရှိ Wallet စာရင်း ({wallets.length} ခု)
-          </h4>
+        {/* Existing Wallets List */}
+        <div className="mb-6">
           <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
             {wallets.map((w) => (
               <div
@@ -161,9 +152,10 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               </div>
             ))}
           </div>
+        </div>
 
-          {/* Add or Edit Form */}
-          <form onSubmit={handleSubmit} className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
+        {/* Add or Edit Form */}
+        <form onSubmit={handleSubmit} className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800">
               {editingWallet ? `✏️ '${editingWallet.name}' ကို ပြင်ဆင်ရန်` : '➕ Wallet အသစ် ထည့်သွင်းရန်'}
@@ -263,7 +255,6 @@ export const WalletModal: React.FC<WalletModalProps> = ({
             </button>
           </div>
         </form>
-        </div>
       </div>
     </div>
   );

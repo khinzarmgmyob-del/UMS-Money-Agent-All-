@@ -45,14 +45,6 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
   const [showSummaryChips, setShowSummaryChips] = useState(true);
   const todayStr = getTodayFormatted();
 
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   // Filter transactions by date and search
   const filteredTransactions = transactions.filter((item) => {
     if (selectedReportDate !== 'ALL' && item.date !== selectedReportDate) {
@@ -171,9 +163,11 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-7xl p-3 sm:p-6 border border-slate-100 max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl p-3 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 gap-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">

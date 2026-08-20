@@ -55,15 +55,6 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [note, setNote] = useState<string>('');
   const [autoUpdateBalances, setAutoUpdateBalances] = useState<boolean>(true);
 
-  // Prevent background scrolling on phone / tablet when modal is active
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   const numAmount = parseFloat(amount) || 0;
   const numCommission = parseFloat(commission) || 0;
 
@@ -179,16 +170,13 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const cashOutWalletAfter = walletBalanceBefore + numAmount;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
-      {/* Backdrop click dismiss */}
-      <div className="absolute inset-0" onClick={onClose} />
-
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
       <div
-        className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150"
+        className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header - Fixed Top */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 shrink-0 bg-white">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
           <div className="flex items-center gap-2.5">
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
@@ -219,6 +207,7 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer shrink-0"
           >
@@ -226,10 +215,8 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Form Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4">
-          {/* 3-Way Type Switcher */}
-          <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl text-xs font-bold">
+        {/* 3-Way Type Switcher */}
+        <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1.5 rounded-xl text-xs font-bold mb-4">
             <button
               type="button"
               onClick={() => {
@@ -837,32 +824,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
                 </div>
               )}
             </div>
-          </form>
-        </div>
 
-        {/* Modal Fixed Footer with Action Buttons */}
-        <div className="px-4 sm:px-6 py-3.5 bg-slate-50 border-t border-slate-100 shrink-0 flex gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 sm:py-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer"
-          >
-            ပယ်ဖျက်မည်
-          </button>
-          <button
-            type="submit"
-            form="transaction-form"
-            className={`flex-1 py-2.5 sm:py-3 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer ${
-              isTransfer
-                ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20'
-                : isCashOut
-                ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20'
-                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
-            }`}
-          >
-            {isTransfer ? 'လွှဲပြောင်း သိမ်းဆည်းမည် ✓' : 'သိမ်းဆည်းမည် ✓'}
-          </button>
-        </div>
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer"
+              >
+                ပယ်ဖျက်မည်
+              </button>
+              <button
+                type="submit"
+                className={`flex-1 py-3 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer ${
+                  isTransfer
+                    ? 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/20'
+                    : isCashOut
+                    ? 'bg-red-600 hover:bg-red-700 shadow-red-600/20'
+                    : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                }`}
+              >
+                {isTransfer ? 'လွှဲပြောင်း သိမ်းဆည်းမည် ✓' : 'သိမ်းဆည်းမည် ✓'}
+              </button>
+            </div>
+          </form>
       </div>
     </div>
   );

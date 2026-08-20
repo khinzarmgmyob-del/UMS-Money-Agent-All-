@@ -44,14 +44,6 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
   const [exportedFilename, setExportedFilename] = useState<string>('');
   const [isCleaningCache, setIsCleaningCache] = useState<boolean>(false);
 
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   // Compute partition
   const { toArchive, toKeep, cutoffDate } = partitionTransactions(
     transactions,
@@ -123,9 +115,11 @@ export const ArchiveMaintenanceModal: React.FC<ArchiveMaintenanceModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh] z-10">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-auto relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-600 to-indigo-700 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">

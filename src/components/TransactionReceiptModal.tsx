@@ -16,14 +16,6 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
 }) => {
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   // Get shop profile from prop or fallback to localStorage
   const shopProfile: ShopProfile = propProfile || (() => {
     const saved = localStorage.getItem('app_shop_profile');
@@ -75,9 +67,11 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
           <div className="flex items-center gap-2">

@@ -14,22 +14,16 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   const totalCash = data.cashAccounts.reduce((sum, c) => sum + c.balance, 0);
   const totalWallets = data.wallets.reduce((sum, w) => sum + w.balance, 0);
   const totalAll = totalCash + totalWallets;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onCancel} />
-      <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 flex flex-col max-h-[90vh] z-10">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto" onClick={onCancel}>
+      <div 
+        className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in duration-150 my-auto relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-sky-600 to-indigo-600 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">

@@ -19,14 +19,6 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
   const [logoUrl, setLogoUrl] = useState<string | undefined>(initialProfile.logoUrl);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -56,11 +48,13 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4 shrink-0">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
               <Store className="w-5 h-5" />
@@ -78,9 +72,7 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
           </button>
         </div>
 
-        {/* Scrollable Form Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain pr-1">
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
             {/* Logo Upload Box */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
@@ -197,7 +189,6 @@ export const ShopProfileModal: React.FC<ShopProfileModalProps> = ({
               </button>
             </div>
           </form>
-        </div>
       </div>
     </div>
   );

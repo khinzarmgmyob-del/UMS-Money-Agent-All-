@@ -87,15 +87,6 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [showSummaryChips, setShowSummaryChips] = useState(true);
   const todayStr = getTodayFormatted();
 
-  // Prevent background scrolling and modal jumping on mobile/tablet
-  useEffect(() => {
-    const origOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = origOverflow;
-    };
-  }, []);
-
   // Filter with date, wallet filter, cash filter, and search query
   const filteredData = data.filter((item) => {
     // 1. Date Filter
@@ -212,9 +203,11 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden touch-none">
-      <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-3 sm:p-6 border border-slate-100 max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto" onClick={onClose}>
+      <div 
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-3 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 relative z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
