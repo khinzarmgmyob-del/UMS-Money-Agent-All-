@@ -255,27 +255,45 @@ export default function App() {
 
     if (updateBalances) {
       if (txData.type === 'လွှဲပြောင်း') {
+        const commChannel = txData.commissionChannel || 'Cash';
+        const commWallet = txData.commissionWalletName || txData.targetWalletName || txData.walletName;
+        const commAmount = txData.commission || 0;
+
         // 1. Dual Wallet Update for Transfer:
         // Source Wallet decreases by amount
         // Target Wallet increases by amount
+        // If commission is received in a Wallet, that wallet balance increases by commission
         setWallets((prevWallets) =>
           prevWallets.map((w) => {
+            let newBal = w.balance;
+            let changed = false;
+
             if (w.name === txData.walletName) {
-              return { ...w, balance: w.balance - txData.amount, updatedDate: txData.date };
+              newBal -= txData.amount;
+              changed = true;
             }
             if (txData.targetWalletName && w.name === txData.targetWalletName) {
-              return { ...w, balance: w.balance + txData.amount, updatedDate: txData.date };
+              newBal += txData.amount;
+              changed = true;
+            }
+            if (commChannel === 'Wallet' && commAmount > 0 && w.name === commWallet) {
+              newBal += commAmount;
+              changed = true;
+            }
+
+            if (changed) {
+              return { ...w, balance: newBal, updatedDate: txData.date };
             }
             return w;
           })
         );
 
-        // 2. Cash Account Update (receives commission if any)
-        if (txData.cashAccountName && (txData.commission || 0) > 0) {
+        // 2. Cash Account Update (if commission is received in Cash)
+        if (commChannel === 'Cash' && txData.cashAccountName && commAmount > 0) {
           setCashAccounts((prevAccounts) =>
             prevAccounts.map((c) => {
               if (c.name === txData.cashAccountName) {
-                return { ...c, balance: c.balance + (txData.commission || 0), updatedDate: txData.date };
+                return { ...c, balance: c.balance + commAmount, updatedDate: txData.date };
               }
               return c;
             })

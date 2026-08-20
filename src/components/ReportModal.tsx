@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Calendar,
@@ -53,19 +53,17 @@ export const getActualCashAmount = (item: Transaction): number => {
 
 // Helper to get Cash Commission vs Wallet Commission
 export const getCommissionBreakdown = (item: Transaction): { cashComm: number; walletComm: number } => {
-  if (item.type === 'လွှဲပြောင်း') {
-    return { cashComm: item.commission || 0, walletComm: 0 };
+  const comm = item.commission || 0;
+  if (item.commissionChannel === 'Wallet') {
+    return { cashComm: 0, walletComm: comm };
   }
   if (item.commissionChannel === 'Cash') {
-    return { cashComm: item.commission, walletComm: 0 };
-  }
-  if (item.commissionChannel === 'Wallet') {
-    return { cashComm: 0, walletComm: item.commission };
+    return { cashComm: comm, walletComm: 0 };
   }
   if (item.type === 'ထုတ်' && item.commissionMode === 'deduct') {
-    return { cashComm: 0, walletComm: item.commission };
+    return { cashComm: 0, walletComm: comm };
   }
-  return { cashComm: item.commission, walletComm: 0 };
+  return { cashComm: comm, walletComm: 0 };
 };
 
 export const ReportModal: React.FC<ReportModalProps> = ({
@@ -88,6 +86,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   const [showSummaryChips, setShowSummaryChips] = useState(true);
   const todayStr = getTodayFormatted();
+
+  // Prevent background scrolling and modal jumping on mobile/tablet
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, []);
 
   // Filter with date, wallet filter, cash filter, and search query
   const filteredData = data.filter((item) => {
@@ -205,8 +212,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-3 sm:p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[96vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-hidden touch-none">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl p-3 sm:p-6 border border-slate-100 max-h-[94vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-10">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">

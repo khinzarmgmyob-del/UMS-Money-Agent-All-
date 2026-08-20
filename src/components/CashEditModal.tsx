@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Banknote, Plus, Trash2, Edit3, Check, DollarSign } from 'lucide-react';
 import { CashAccountItem } from '../types';
 import { getTodayFormatted, formatKs } from '../utils/formatters';
@@ -32,6 +32,14 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
   const [balance, setBalance] = useState('');
   const [date, setDate] = useState(getTodayFormatted());
   const [note, setNote] = useState('');
+
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, []);
 
   const totalCash = cashAccounts.reduce((sum, a) => sum + a.balance, 0);
 
@@ -81,19 +89,20 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
               <Banknote className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">
                 💵 လက်ငင်းငွေသား အကောင့်များ စီမံခန့်ခွဲမှု
               </h3>
-              <p className="text-xs text-slate-400">Cash Drawers / Cash Accounts Management</p>
+              <p className="text-[11px] text-slate-400">Cash Drawers / Cash Accounts Management</p>
             </div>
           </div>
           <button
@@ -103,6 +112,9 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5">
 
         {/* Total Summary */}
         <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3.5 mb-5 flex items-center justify-between">
@@ -269,6 +281,7 @@ export const CashEditModal: React.FC<CashEditModalProps> = ({
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );

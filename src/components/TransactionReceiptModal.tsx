@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Printer, Copy, Check, FileCheck, Store, MapPin, Phone } from 'lucide-react';
 import { Transaction, ShopProfile } from '../types';
 import { formatKs } from '../utils/formatters';
@@ -15,6 +15,14 @@ export const TransactionReceiptModal: React.FC<TransactionReceiptModalProps> = (
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, []);
 
   // Get shop profile from prop or fallback to localStorage
   const shopProfile: ShopProfile = propProfile || (() => {
@@ -67,10 +75,11 @@ ${transaction.cashAccountName ? `ငွေသားအကောင့်: ${tran
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-6 border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
               isTransfer ? 'bg-sky-50 text-sky-600' : isCashOut ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'

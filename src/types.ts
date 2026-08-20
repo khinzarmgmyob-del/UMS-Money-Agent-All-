@@ -36,7 +36,8 @@ export interface Transaction {
   amount: number;
   commission: number;
   commissionMode?: CommissionMode; // 'deduct' (မူလငွေမှ နုတ်ယူ) | 'separate' (သက်သက်ပေး)
-  commissionChannel?: CommissionChannel; // 'Cash' (ငွေသားထဲဝင်) | 'Wallet' (Wallet ထဲကျန်/လျော့လွှဲ)
+  commissionChannel?: CommissionChannel; // 'Cash' (ငွေသားထဲဝင်) | 'Wallet' (Wallet ထဲကျန်/ဝင်)
+  commissionWalletName?: string; // ကော်မရှင်လက်ခံမည့် Wallet အမည် (Wallet Channel အတွက်)
   netPayout?: number; // ဖောက်သည်သို့ လက်ငင်းပေးအပ်ငွေ
   phone: string;
   walletName: string; // e.g. KPay, WaveMoney, CB Pay (သို့မဟုတ် လွှဲထုတ်မည့် Wallet)

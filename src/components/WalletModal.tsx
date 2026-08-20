@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Wallet, Plus, Trash2, Edit3, ShieldAlert } from 'lucide-react';
 import { WalletItem } from '../types';
 import { getTodayFormatted, formatKs } from '../utils/formatters';
@@ -35,6 +35,14 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const [balance, setBalance] = useState('');
   const [date, setDate] = useState(getTodayFormatted());
   const [accountNumber, setAccountNumber] = useState('');
+
+  useEffect(() => {
+    const origOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = origOverflow;
+    };
+  }, []);
 
   const handleStartEdit = (w: WalletItem) => {
     setEditingWallet(w);
@@ -82,31 +90,32 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 border border-slate-100 my-auto animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-hidden touch-none">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-slate-100 max-h-[92vh] flex flex-col overflow-hidden z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0 bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
               <Wallet className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">
+              <h3 className="text-base sm:text-lg font-bold text-slate-800">
                 👛 Wallet များ စီမံခန့်ခွဲမှု
               </h3>
-              <p className="text-xs text-slate-400">Wallet အသစ်ထည့်ခြင်း နှင့် လက်ကျန်ငွေ ပြင်ဆင်ခြင်း</p>
+              <p className="text-[11px] text-slate-400">Wallet အသစ်ထည့်ခြင်း နှင့် လက်ကျန်ငွေ ပြင်ဆင်ခြင်း</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Existing Wallets List */}
-        <div className="mb-6">
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5">
           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
             လက်ရှိ Wallet စာရင်း ({wallets.length} ခု)
           </h4>
@@ -152,10 +161,9 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               </div>
             ))}
           </div>
-        </div>
 
-        {/* Add or Edit Form */}
-        <form onSubmit={handleSubmit} className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
+          {/* Add or Edit Form */}
+          <form onSubmit={handleSubmit} className="p-4 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800">
               {editingWallet ? `✏️ '${editingWallet.name}' ကို ပြင်ဆင်ရန်` : '➕ Wallet အသစ် ထည့်သွင်းရန်'}
@@ -255,6 +263,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
             </button>
           </div>
         </form>
+        </div>
       </div>
     </div>
   );
