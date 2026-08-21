@@ -218,22 +218,22 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
           </button>
         </div>
 
-        {/* 2-Way Type Switcher */}
-        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-xl text-xs sm:text-sm font-bold mb-3 shrink-0">
+        {/* 3-Way Type Switcher: သွင်း / ထုတ် / Wallet to Wallet */}
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 bg-slate-100 p-1.5 rounded-xl text-xs sm:text-sm font-bold mb-3 shrink-0">
           <button
             type="button"
             onClick={() => {
               setType('သွင်း');
               setCommission('3000');
             }}
-            className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-1.5 sm:px-2.5 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
               isCashIn
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ArrowDownRight className="w-4 h-4" />
-            <span>↘ + ငွေသွင်း (Cash In)</span>
+            <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">↘ ငွေသွင်း</span>
           </button>
 
           <button
@@ -242,14 +242,30 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
               setType('ထုတ်');
               setCommission('3000');
             }}
-            className={`py-2 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+            className={`py-2 px-1.5 sm:px-2.5 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
               isCashOut
                 ? 'bg-red-600 text-white shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ArrowUpRight className="w-4 h-4" />
-            <span>↗ - ငွေထုတ် (Cash Out)</span>
+            <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">↗ ငွေထုတ်</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setType('လွှဲပြောင်း');
+              setCommission('1000');
+            }}
+            className={`py-2 px-1.5 sm:px-2.5 rounded-lg flex items-center justify-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
+              isTransfer
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ArrowLeftRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+            <span className="truncate">⇄ W2W လွှဲ</span>
           </button>
         </div>
 

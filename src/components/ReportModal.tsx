@@ -574,27 +574,39 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
           {/* VIEW 2: FULL TABLE VIEW */}
           {viewMode === 'table' && (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-xs text-left border-collapse min-w-[760px]">
-                <thead className="bg-slate-100 sticky top-0 z-10 text-slate-700 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-2.5 whitespace-nowrap">စဉ်</th>
-                    <th className="p-2.5 whitespace-nowrap">နေ့စွဲ/အချိန်</th>
-                    <th className="p-2.5 whitespace-nowrap">ဖောက်သည် အမည်</th>
-                    <th className="p-2.5 text-center whitespace-nowrap">အမျိုးအစား</th>
-                    <th className="p-2.5 text-right whitespace-nowrap">လက်ငင်း/လွှဲငွေ (Ks)</th>
-                    <th className="p-2.5 text-right whitespace-nowrap">မူလလွှဲငွေ (Ks)</th>
-                    <th className="p-2.5 text-right whitespace-nowrap bg-amber-50/60 text-amber-900">
-                      💵 ငွေသားကော်မရှင်
-                    </th>
-                    <th className="p-2.5 text-right whitespace-nowrap bg-purple-50/60 text-purple-900">
-                      📱 Walletကော်မရှင်
-                    </th>
-                    <th className="p-2.5 whitespace-nowrap">Wallet အကောင့်</th>
-                    <th className="p-2.5 whitespace-nowrap">ငွေသား အကောင့်</th>
-                    <th className="p-2.5 text-center whitespace-nowrap">လုပ်ဆောင်ချက်</th>
-                  </tr>
-                </thead>
+            <div className="space-y-1.5">
+              {/* Horizontal Scroll Hint for Mobile/Tablet */}
+              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+                <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px] bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                  <span>👉 ဘေးသို့ ဆွဲရွှေ့ပြီး ဇယားအပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည် (Swipe left/right to view full table)</span>
+                </div>
+                <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
+                  စုစုပေါင်း: {filteredData.length} ခု
+                </span>
+              </div>
+
+              <div className="overflow-x-auto touch-pan-x overscroll-x-contain border border-slate-200 rounded-xl bg-white shadow-2xs">
+                <table className="w-full text-xs text-left border-collapse min-w-[880px]">
+                  <thead className="bg-slate-100 sticky top-0 z-10 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="p-2.5 whitespace-nowrap min-w-[48px]">စဉ်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">နေ့စွဲ/အချိန်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">ဖောက်သည် အမည်</th>
+                      <th className="p-2.5 text-center whitespace-nowrap min-w-[90px]">အမျိုးအစား</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[130px]">လက်ငင်း/လွှဲငွေ (Ks)</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[110px]">မူလလွှဲငွေ (Ks)</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-amber-50/70 text-amber-900">
+                        💵 ငွေသားကော်မရှင်
+                      </th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-purple-50/70 text-purple-900">
+                        📱 Walletကော်မရှင်
+                      </th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">Wallet အကောင့်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">ငွေသား အကောင့်</th>
+                      <th className="p-2.5 text-center whitespace-nowrap min-w-[90px]">လုပ်ဆောင်ချက်</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredData.length === 0 ? (
                     <tr>
@@ -741,11 +753,12 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                     </tr>
                   </tfoot>
                 )}
-              </table>
+                </table>
+              </div>
             </div>
           )}
-          </div>
         </div>
+      </div>
     </div>
   );
 };

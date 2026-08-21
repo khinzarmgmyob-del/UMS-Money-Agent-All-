@@ -480,61 +480,76 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
           {/* VIEW 2: FULL MATRIX TABLE */}
           {viewMode === 'table' && (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-xs text-left border-collapse min-w-[850px]">
-                <thead className="bg-slate-100 sticky top-0 z-20 text-slate-700 font-bold border-b border-slate-200 shadow-xs">
-                  <tr className="border-b border-slate-200/80 bg-slate-200/60 text-[10px]">
-                    <th colSpan={4} className="p-1.5 text-center text-slate-700 font-bold border-r border-slate-300">
-                      📋 အရောင်းအဝယ် အချက်အလက်
-                    </th>
-                    <th
-                      colSpan={cashAccounts.length}
-                      className="p-1.5 text-center text-emerald-900 bg-emerald-100/70 font-bold border-r border-slate-300"
-                    >
-                      💵 ငွေသားအကောင့်များ
-                    </th>
-                    <th
-                      colSpan={wallets.length}
-                      className="p-1.5 text-center text-indigo-900 bg-indigo-100/70 font-bold border-r border-slate-300"
-                    >
-                      🏦 Wallet အကောင့်များ
-                    </th>
-                    <th colSpan={2} className="p-1.5 text-center text-amber-900 bg-amber-100/70 font-bold">
-                      အခြား
-                    </th>
-                  </tr>
-                  <tr>
-                    <th className="p-2 whitespace-nowrap">စဉ်</th>
-                    <th className="p-2 whitespace-nowrap">ရက်စွဲ/အချိန်</th>
-                    <th className="p-2 whitespace-nowrap">ဖောက်သည်</th>
-                    <th className="p-2 whitespace-nowrap border-r border-slate-300">အမျိုးအစား</th>
+            <div className="space-y-1.5">
+              {/* Horizontal Scroll Hint for Mobile/Tablet */}
+              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+                <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px] bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                  <span>👉 ဘေးသို့ ဆွဲရွှေ့ပြီး ငွေသားနှင့် Wallet အကောင့်များ စစ်ဆေးနိုင်ပါသည် (Swipe left/right)</span>
+                </div>
+                <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
+                  ငွေစာရင်း {cashAccounts.length + wallets.length} ခု
+                </span>
+              </div>
 
-                    {/* Cash Account Columns */}
-                    {cashAccounts.map((c) => (
-                      <th
-                        key={`th-c-${c.id}`}
-                        className="p-2 text-right whitespace-nowrap bg-emerald-50/50 text-emerald-900 font-bold"
-                      >
-                        {c.name}
+              <div className="overflow-x-auto touch-pan-x overscroll-x-contain border border-slate-200 rounded-xl bg-white shadow-2xs">
+                <table 
+                  className="w-full text-xs text-left border-collapse"
+                  style={{ minWidth: `${Math.max(920, 460 + (cashAccounts.length + wallets.length) * 115)}px` }}
+                >
+                  <thead className="bg-slate-100 sticky top-0 z-20 text-slate-700 font-bold border-b border-slate-200 shadow-xs">
+                    <tr className="border-b border-slate-200/80 bg-slate-200/60 text-[10px]">
+                      <th colSpan={4} className="p-1.5 text-center text-slate-700 font-bold border-r border-slate-300">
+                        📋 အရောင်းအဝယ် အချက်အလက်
                       </th>
-                    ))}
-
-                    {/* Wallet Columns */}
-                    {wallets.map((w, wIdx) => (
                       <th
-                        key={`th-w-${w.id}`}
-                        className={`p-2 text-right whitespace-nowrap bg-indigo-50/50 text-indigo-900 font-bold ${
-                          wIdx === wallets.length - 1 ? 'border-r border-slate-300' : ''
-                        }`}
+                        colSpan={cashAccounts.length}
+                        className="p-1.5 text-center text-emerald-900 bg-emerald-100/70 font-bold border-r border-slate-300"
                       >
-                        {w.name}
+                        💵 ငွေသားအကောင့်များ
                       </th>
-                    ))}
+                      <th
+                        colSpan={wallets.length}
+                        className="p-1.5 text-center text-indigo-900 bg-indigo-100/70 font-bold border-r border-slate-300"
+                      >
+                        🏦 Wallet အကောင့်များ
+                      </th>
+                      <th colSpan={2} className="p-1.5 text-center text-amber-900 bg-amber-100/70 font-bold">
+                        အခြား
+                      </th>
+                    </tr>
+                    <tr>
+                      <th className="p-2 whitespace-nowrap min-w-[44px]">စဉ်</th>
+                      <th className="p-2 whitespace-nowrap min-w-[110px]">ရက်စွဲ/အချိန်</th>
+                      <th className="p-2 whitespace-nowrap min-w-[130px]">ဖောက်သည်</th>
+                      <th className="p-2 whitespace-nowrap min-w-[90px] border-r border-slate-300">အမျိုးအစား</th>
 
-                    <th className="p-2 text-right whitespace-nowrap bg-amber-50 text-amber-900">ကော်မရှင်</th>
-                    <th className="p-2 whitespace-nowrap">မှတ်ချက်</th>
-                  </tr>
-                </thead>
+                      {/* Cash Account Columns */}
+                      {cashAccounts.map((c) => (
+                        <th
+                          key={`th-c-${c.id}`}
+                          className="p-2 text-right whitespace-nowrap bg-emerald-50/70 text-emerald-900 font-bold min-w-[110px]"
+                        >
+                          {c.name}
+                        </th>
+                      ))}
+
+                      {/* Wallet Columns */}
+                      {wallets.map((w, wIdx) => (
+                        <th
+                          key={`th-w-${w.id}`}
+                          className={`p-2 text-right whitespace-nowrap bg-indigo-50/70 text-indigo-900 font-bold min-w-[110px] ${
+                            wIdx === wallets.length - 1 ? 'border-r border-slate-300' : ''
+                          }`}
+                        >
+                          {w.name}
+                        </th>
+                      ))}
+
+                      <th className="p-2 text-right whitespace-nowrap bg-amber-50/70 text-amber-900 min-w-[100px]">ကော်မရှင်</th>
+                      <th className="p-2 whitespace-nowrap min-w-[130px]">မှတ်ချက်</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-slate-200">
                   {sortedTransactions.length === 0 ? (
                     <tr>
@@ -620,11 +635,12 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
                     })
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
           )}
-          </div>
         </div>
+      </div>
     </div>
   );
 };

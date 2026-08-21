@@ -722,8 +722,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* PRIMARY ACTION BUTTONS: CASH IN, CASH OUT & WALLET TO WALLET TRANSFER */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+        {/* PRIMARY ACTION BUTTONS: CASH IN & CASH OUT */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
           {/* BUTTON 1: CASH IN (GREEN) */}
           <button
             onClick={() => {
@@ -775,33 +775,6 @@ export default function App() {
             <div className="text-right hidden sm:block shrink-0 pl-2">
               <div className="text-[11px] font-semibold text-red-100">ယနေ့ ငွေထုတ်</div>
               <div className="text-sm font-black">-{formatKs(todayOut)}</div>
-            </div>
-          </button>
-
-          {/* BUTTON 3: WALLET TO WALLET TRANSFER (LIGHT BLUE / SKY) */}
-          <button
-            onClick={() => {
-              setTransactionModalType('လွှဲပြောင်း');
-              setShowTransactionModal(true);
-            }}
-            className="group p-4 sm:p-5 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600 text-white rounded-2xl shadow-lg shadow-sky-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] sm:col-span-2 md:col-span-1"
-          >
-            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowLeftRight className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
-                  Wallet to Wallet
-                </div>
-                <div className="text-[11px] sm:text-xs text-sky-100 line-clamp-1">
-                  Wallet အချင်းချင်း ငွေလွှဲပြောင်းခြင်း
-                </div>
-              </div>
-            </div>
-            <div className="text-right hidden sm:block shrink-0 pl-2">
-              <div className="text-[11px] font-semibold text-sky-100">ယနေ့ လွှဲပြောင်း</div>
-              <div className="text-sm font-black">{formatKs(todayTransfer)}</div>
             </div>
           </button>
         </div>
@@ -1205,23 +1178,35 @@ export default function App() {
 
           {/* VIEW 2: TABLE VIEW */}
           {mainViewMode === 'table' && (
-            <div className="overflow-x-auto border border-slate-200/80 rounded-xl">
-              <table className="w-full text-xs text-left border-collapse min-w-[760px]">
-                <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="p-3 whitespace-nowrap">စဉ်</th>
-                    <th className="p-3 whitespace-nowrap">နေ့စွဲ/အချိန်</th>
-                    <th className="p-3 whitespace-nowrap">ဖောက်သည် အမည်</th>
-                    <th className="p-3 text-center whitespace-nowrap">အမျိုးအစား</th>
-                    <th className="p-3 text-right whitespace-nowrap">လက်ငင်း/လွှဲငွေ (Ks)</th>
-                    <th className="p-3 text-right whitespace-nowrap bg-amber-50/50 text-amber-900">💵 ငွေသားကော်မရှင်</th>
-                    <th className="p-3 text-right whitespace-nowrap bg-purple-50/50 text-purple-900">📱 Walletကော်မရှင်</th>
-                    <th className="p-3 whitespace-nowrap">ဖုန်းနံပါတ်</th>
-                    <th className="p-3 whitespace-nowrap">Wallet အကောင့်</th>
-                    <th className="p-3 whitespace-nowrap">ငွေသားအကောင့်</th>
-                    <th className="p-3 text-center whitespace-nowrap">ပြေစာ</th>
-                  </tr>
-                </thead>
+            <div className="space-y-1.5">
+              {/* Horizontal Scroll Hint for Mobile/Tablet */}
+              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
+                <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px] bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+                  <span>👉 ဘေးသို့ ဆွဲရွှေ့ပြီး ဇယားအပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည် (Swipe left/right)</span>
+                </div>
+                <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
+                  {filteredMainTransactions.length} ခု
+                </span>
+              </div>
+
+              <div className="overflow-x-auto touch-pan-x overscroll-x-contain border border-slate-200/80 rounded-xl bg-white shadow-2xs">
+                <table className="w-full text-xs text-left border-collapse min-w-[850px]">
+                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                    <tr>
+                      <th className="p-2.5 whitespace-nowrap min-w-[44px]">စဉ်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">နေ့စွဲ/အချိန်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">ဖောက်သည် အမည်</th>
+                      <th className="p-2.5 text-center whitespace-nowrap min-w-[90px]">အမျိုးအစား</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[130px]">လက်ငင်း/လွှဲငွေ (Ks)</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-amber-50/70 text-amber-900">💵 ငွေသားကော်မရှင်</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-purple-50/70 text-purple-900">📱 Walletကော်မရှင်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[110px]">ဖုန်းနံပါတ်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">Wallet အကောင့်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">ငွေသားအကောင့်</th>
+                      <th className="p-2.5 text-center whitespace-nowrap min-w-[80px]">ပြေစာ</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredMainTransactions.length === 0 ? (
                     <tr>
@@ -1329,7 +1314,8 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
+        )}
         </div>
 
         {/* DATA MAINTENANCE, ARCHIVE & BACKUP / RESTORE FOOTER CARD */}
