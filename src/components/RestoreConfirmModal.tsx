@@ -20,7 +20,7 @@ export const RestoreConfirmModal: React.FC<RestoreConfirmModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2.5 sm:p-4 md:p-6"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 md:p-6"
       onClick={onCancel}
     >
       <div 

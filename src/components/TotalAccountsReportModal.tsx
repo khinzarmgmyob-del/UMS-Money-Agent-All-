@@ -516,7 +516,7 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
                 </span>
               </div>
 
-              <div className="overflow-x-auto overflow-y-auto max-h-[56vh] sm:max-h-[62vh] touch-pan-x overscroll-contain border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-2xs">
+              <div className="overflow-x-auto overflow-y-auto max-h-[56vh] sm:max-h-[62vh] overscroll-contain border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-2xs">
                 <table 
                   className="w-full text-xs text-left border-collapse"
                   style={{ minWidth: `${Math.max(920, 460 + (cashAccounts.length + wallets.length) * 115)}px` }}
