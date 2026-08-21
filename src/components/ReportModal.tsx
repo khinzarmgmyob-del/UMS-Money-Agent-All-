@@ -204,29 +204,29 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 md:p-6"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6"
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-6xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-5 md:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-6xl bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-5 md:p-6 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-200 mb-3 shrink-0 gap-2">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 mb-3 shrink-0 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {icon ? (
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">{icon}</div>
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">{icon}</div>
             ) : (
-              <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl shrink-0">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">
                 <TrendingUp className="w-5 h-5" />
               </div>
             )}
             <div className="min-w-0">
-              <h3 className="text-sm sm:text-base md:text-lg font-black text-slate-800 truncate">
+              <h3 className="text-sm sm:text-base md:text-lg font-black text-slate-800 dark:text-slate-100 truncate">
                 {title}
               </h3>
-              <p className="text-[11px] text-slate-400">
-                စာရင်းပေါင်း: <span className="font-bold text-slate-700">{filteredData.length}</span> ခု
+              <p className="text-[11px] text-slate-400 dark:text-slate-400">
+                စာရင်းပေါင်း: <span className="font-bold text-slate-700 dark:text-slate-200">{filteredData.length}</span> ခု
               </p>
             </div>
           </div>

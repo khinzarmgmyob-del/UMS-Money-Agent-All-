@@ -64,22 +64,6 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
   const sortedTransactions = [...filteredTransactions].sort((a, b) => a.id - b.id);
 
-  // Total current balances
-  const totalCashBalance = cashAccounts.reduce((sum, c) => sum + c.balance, 0);
-  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
-  const grandTotalBalance = totalCashBalance + totalWalletBalance;
-
-  // Commission totals
-  const totalCommission = sortedTransactions.reduce((sum, t) => sum + (t.commission || 0), 0);
-
-  // Totals for matrix columns
-  const cashAccountTotals = cashAccounts.map((c) =>
-    sortedTransactions.reduce((sum, tx) => sum + getCashDeltaForTx(tx, c.name), 0)
-  );
-  const walletTotals = wallets.map((w) =>
-    sortedTransactions.reduce((sum, tx) => sum + getWalletDeltaForTx(tx, w.name), 0)
-  );
-
   // Cash Account deltas for filtered transactions
   const getCashDeltaForTx = (tx: Transaction, cashAccName: string): number => {
     if (tx.cashAccountName !== cashAccName) return 0;
@@ -104,6 +88,22 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
     const isCashOut = tx.type === 'ထုတ်';
     return isCashOut ? tx.amount : -tx.amount;
   };
+
+  // Total current balances
+  const totalCashBalance = cashAccounts.reduce((sum, c) => sum + c.balance, 0);
+  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
+  const grandTotalBalance = totalCashBalance + totalWalletBalance;
+
+  // Commission totals
+  const totalCommission = sortedTransactions.reduce((sum, t) => sum + (t.commission || 0), 0);
+
+  // Totals for matrix columns
+  const cashAccountTotals = cashAccounts.map((c) =>
+    sortedTransactions.reduce((sum, tx) => sum + getCashDeltaForTx(tx, c.name), 0)
+  );
+  const walletTotals = wallets.map((w) =>
+    sortedTransactions.reduce((sum, tx) => sum + getWalletDeltaForTx(tx, w.name), 0)
+  );
 
   // Export CSV
   const handleExportCSV = () => {
@@ -172,11 +172,11 @@ export const TotalAccountsReportModal: React.FC<TotalAccountsReportModalProps> =
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto overscroll-contain flex items-center justify-center p-2 sm:p-4 md:p-6"
+      className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6"
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-7xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-5 md:p-6 border border-slate-100 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-7xl bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl p-3 sm:p-5 md:p-6 border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-150 z-10 my-auto max-h-[94vh] md:max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}

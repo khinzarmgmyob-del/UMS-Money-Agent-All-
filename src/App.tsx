@@ -50,6 +50,8 @@ import { ShopProfileModal } from './components/ShopProfileModal';
 import { TotalAccountsReportModal } from './components/TotalAccountsReportModal';
 import { RestoreConfirmModal } from './components/RestoreConfirmModal';
 import { ArchiveMaintenanceModal } from './components/ArchiveMaintenanceModal';
+import { CashReconcileModal } from './components/CashReconcileModal';
+import { WalletReconcileModal } from './components/WalletReconcileModal';
 
 // Initial Clean Cash Accounts (0 Balance)
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -133,6 +135,8 @@ export default function App() {
   const [showCashReport, setShowCashReport] = useState<boolean>(false);
   const [showAllTransactionsModal, setShowAllTransactionsModal] = useState<boolean>(false);
   const [showTotalAccountsReport, setShowTotalAccountsReport] = useState<boolean>(false);
+  const [showCashReconcileReport, setShowCashReconcileReport] = useState<boolean>(false);
+  const [showWalletReconcileReport, setShowWalletReconcileReport] = useState<boolean>(false);
   const [showArchiveModal, setShowArchiveModal] = useState<boolean>(false);
 
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
@@ -1462,15 +1466,41 @@ export default function App() {
               </p>
             </div>
 
-            {/* Archive / Maintenance Action Button */}
-            <button
-              onClick={() => setShowArchiveModal(true)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/20 cursor-pointer"
-              title="လွန်ခဲ့သော ၆ လ/၁ နှစ် စာရင်းဟောင်းများကို ခွဲထုတ်သိမ်းဆည်းပြီး Database ကို Compact ရှင်းလင်းမည်"
-            >
-              <Archive className="w-4 h-4" />
-              🗄️ စာရင်းဟောင်း Archive &amp; Compact
-            </button>
+            {/* Report & Maintenance Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setSelectedReportDate(todayStr);
+                  setShowCashReconcileReport(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-emerald-600/20 cursor-pointer"
+                title="ငွေသားအကောက်များ၏ ဝင်ငွေ/ထွက်ငွေ နှင့် Net Amount အသေးစိတ် ရှင်းတမ်း"
+              >
+                <Banknote className="w-4 h-4" />
+                💵 လက်ငင်းငွေသား Reconcile
+              </button>
+
+              <button
+                onClick={() => {
+                  setSelectedReportDate(todayStr);
+                  setShowWalletReconcileReport(true);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                title="Wallet များ၏ ဝင်ငွေ/ထွက်ငွေ နှင့် Net Amount အသေးစိတ် ရှင်းတမ်း"
+              >
+                <Wallet className="w-4 h-4" />
+                🏦 Wallet Reconcile
+              </button>
+
+              <button
+                onClick={() => setShowArchiveModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/20 cursor-pointer"
+                title="လွန်ခဲ့သော ၆ လ/၁ နှစ် စာရင်းဟောင်းများကို ခွဲထုတ်သိမ်းဆည်းပြီး Database ကို Compact ရှင်းလင်းမည်"
+              >
+                <Archive className="w-4 h-4" />
+                🗄️ စာရင်းဟောင်း Archive &amp; Compact
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1694,7 +1724,35 @@ export default function App() {
         />
       )}
 
-      {/* 11. Archive & Maintenance Modal */}
+      {/* 11. Cash Reconcile Report Modal */}
+      {showCashReconcileReport && (
+        <CashReconcileModal
+          onClose={() => setShowCashReconcileReport(false)}
+          cashAccounts={cashAccounts}
+          transactions={transactions}
+          shopProfile={shopProfile}
+          selectedReportDate={selectedReportDate}
+          setSelectedReportDate={setSelectedReportDate}
+          onDeleteTransaction={handleDeleteTransaction}
+          onViewReceipt={(tx) => setActiveReceipt(tx)}
+        />
+      )}
+
+      {/* 12. Wallet Reconcile Report Modal */}
+      {showWalletReconcileReport && (
+        <WalletReconcileModal
+          onClose={() => setShowWalletReconcileReport(false)}
+          wallets={wallets}
+          transactions={transactions}
+          shopProfile={shopProfile}
+          selectedReportDate={selectedReportDate}
+          setSelectedReportDate={setSelectedReportDate}
+          onDeleteTransaction={handleDeleteTransaction}
+          onViewReceipt={(tx) => setActiveReceipt(tx)}
+        />
+      )}
+
+      {/* 13. Archive & Maintenance Modal */}
       {showArchiveModal && (
         <ArchiveMaintenanceModal
           transactions={transactions}
