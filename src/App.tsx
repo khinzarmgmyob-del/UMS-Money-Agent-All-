@@ -32,11 +32,14 @@ import {
   Loader2,
   X,
   Archive,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs, formatLakh } from './utils/formatters';
 import { exportBackupData, readBackupFromFile } from './utils/backupManager';
+import { getAccountColorStyle, getPresetByColor } from './utils/colors';
 import { LicenseLockScreen } from './components/LicenseLockScreen';
 import { TransactionModal } from './components/TransactionModal';
 import { WalletModal } from './components/WalletModal';
@@ -162,6 +165,25 @@ export default function App() {
   const [mainTypeFilter, setMainTypeFilter] = useState<string>('all');
   const [mainSearchQuery, setMainSearchQuery] = useState<string>('');
   const [mainViewMode, setMainViewMode] = useState<'card' | 'table'>('card');
+
+  // Dark / Light Theme State
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('app_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('app_theme', theme);
+  }, [theme]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -515,6 +537,23 @@ export default function App() {
     );
   });
 
+  // Summary calculations for filtered main dashboard transactions
+  const mainNetCash = filteredMainTransactions.reduce((sum, item) => {
+    if (item.type === 'လွှဲပြောင်း') return sum;
+    const actualCash = getActualCash(item);
+    return item.type === 'သွင်း' ? sum + actualCash : sum - actualCash;
+  }, 0);
+
+  const mainTotalCashComm = filteredMainTransactions.reduce((sum, item) => {
+    return sum + getCommissionBreakdown(item).cashComm;
+  }, 0);
+
+  const mainTotalWalletComm = filteredMainTransactions.reduce((sum, item) => {
+    return sum + getCommissionBreakdown(item).walletComm;
+  }, 0);
+
+  const mainGrandTotalComm = mainTotalCashComm + mainTotalWalletComm;
+
   // If Not Activated, Show License Screen
   if (!isActivated) {
     return (
@@ -534,13 +573,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-800 antialiased p-2.5 sm:p-4 md:p-6 lg:p-8 flex flex-col justify-start">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased p-2.5 sm:p-4 md:p-6 lg:p-8 flex flex-col justify-start transition-colors duration-200">
       <div className="w-full max-w-7xl mx-auto space-y-4 md:space-y-6 flex-1 flex flex-col">
         {/* TOP HEADER */}
-        <header className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 md:gap-4">
+        <header className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 md:gap-4 transition-colors">
           <div className="flex items-center gap-3 md:gap-3.5">
             {shopProfile.logoUrl ? (
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl border border-slate-200 bg-white p-1 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-1 shadow-xs flex items-center justify-center overflow-hidden shrink-0">
                 <img src={shopProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
               </div>
             ) : (
@@ -549,9 +588,9 @@ export default function App() {
               </div>
             )}
             <div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
                 <span>{shopProfile.shopName || 'Money Agent POS'}</span>
-                <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
+                <span className="text-[10px] uppercase font-bold tracking-wider bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-800">
                   PRO
                 </span>
               </h1>
@@ -566,14 +605,14 @@ export default function App() {
           <div className="flex items-center gap-2 sm:gap-2.5">
             <button
               onClick={() => setShowShopProfileModal(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700/60"
               title="ဆိုင် / လုပ်ငန်း Profile ပြင်ဆင်ရန်"
             >
-              <Store className="w-3.5 h-3.5 text-indigo-600" />
+              <Store className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>ဆိုင် Profile</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold">
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 rounded-xl text-xs font-bold">
               <ShieldCheck className="w-4 h-4" />
               <span>Activated</span>
             </div>
@@ -590,22 +629,41 @@ export default function App() {
               <FileSpreadsheet className="w-4 h-4" />
               <span>စာရင်းချုပ် အားလုံး</span>
             </button>
+
+            {/* Dark / Light Theme Toggle Button */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700 shadow-xs"
+              title={theme === 'dark' ? 'Light Theme သို့ ပြောင်းရန်' : 'Dark Theme သို့ ပြောင်းရန်'}
+            >
+              {theme === 'dark' ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="hidden sm:inline">Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-600" />
+                  <span className="hidden sm:inline">Dark</span>
+                </>
+              )}
+            </button>
           </div>
         </header>
 
         {/* TOP 4 STATS CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           {/* CARD 1: CASH ACCOUNTS TOTAL */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow relative group">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition-all relative group">
             <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                   💵 လက်ငင်းငွေသားပေါင်း (Cash)
                 </span>
                 <button
                   onClick={() => setShowCashEditModal(true)}
-                  className="p-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 rounded-md text-xs transition-colors cursor-pointer"
-                  title="လက်ငင်းငွေသား အကောင့်များ စီမံရန်"
+                  className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md text-xs transition-colors cursor-pointer"
+                  title="လက်ငင်းငွေသား အကောက်များ စီမံရန်"
                 >
                   <Plus className="w-3.5 h-3.5" />
                 </button>
@@ -617,30 +675,30 @@ export default function App() {
                   setSelectedWalletFilter('all');
                   setShowCashReport(true);
                 }}
-                className="text-xs text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
               >
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
               {formatKs(totalCashBalance)}
             </h2>
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold text-slate-600">{formatLakh(totalCashBalance)}</span>
-              <span>{cashAccounts.length} အကောင့်</span>
+            <div className="mt-2 flex items-center justify-between text-xs text-slate-400 dark:text-slate-400">
+              <span className="font-semibold text-slate-600 dark:text-slate-300">{formatLakh(totalCashBalance)}</span>
+              <span>{cashAccounts.length} အကောက်</span>
             </div>
           </div>
 
           {/* CARD 2: WALLETS TOTAL */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-md transition-shadow">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                   🏦 Wallet လက်ကျန်ပေါင်း
                 </span>
                 <button
                   onClick={() => setShowWalletModal(true)}
-                  className="p-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 rounded-md text-xs transition-colors cursor-pointer"
+                  className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md text-xs transition-colors cursor-pointer"
                   title="Wallet စာရင်း ထည့်သွင်း/ပြင်ဆင်ရန်"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -653,24 +711,24 @@ export default function App() {
                   setSelectedCashFilter('all');
                   setShowWalletReport(true);
                 }}
-                className="text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-indigo-100 dark:border-indigo-800/60"
               >
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
               {formatKs(totalWalletBalance)}
             </h2>
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-              <span className="font-semibold text-slate-600">{formatLakh(totalWalletBalance)}</span>
-              <span>{wallets.length} ခု</span>
+            <div className="mt-2 flex items-center justify-between text-xs text-slate-400 dark:text-slate-400">
+              <span className="font-semibold text-slate-600 dark:text-slate-300">{formatLakh(totalWalletBalance)}</span>
+              <span>{wallets.length} အကောက်</span>
             </div>
           </div>
 
           {/* CARD 3: COMMISSION SUMMARY */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-shadow">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                 📈 ကော်မရှင်ခ စာရင်း
               </span>
               <button
@@ -680,24 +738,24 @@ export default function App() {
                   setSelectedCashFilter('all');
                   setShowCommissionReport(true);
                 }}
-                className="text-xs text-amber-700 hover:text-amber-900 bg-amber-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-amber-100 dark:border-amber-800/60"
               >
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-amber-800 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
               +{formatKs(todayCommission)}
             </h2>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 font-medium">
-              <span className="text-amber-800 font-semibold">💵 ငွေသား: +{formatKs(todayCashComm)}</span>
-              <span className="text-purple-800 font-semibold">📱 Wallet: +{formatKs(todayWalletComm)}</span>
+            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              <span className="text-amber-700 dark:text-amber-400 font-semibold">💵 ငွေသား: +{formatKs(todayCashComm)}</span>
+              <span className="text-purple-700 dark:text-purple-400 font-semibold">📱 Wallet: +{formatKs(todayWalletComm)}</span>
             </div>
           </div>
 
           {/* CARD 4: TOTAL ALL ACCOUNTS BALANCE (CASH + WALLETS) */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-shadow">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
                 🌐 စုစုပေါင်း လက်ကျန်ငွေ
               </span>
               <button
@@ -705,17 +763,17 @@ export default function App() {
                   setSelectedReportDate(todayStr);
                   setShowTotalAccountsReport(true);
                 }}
-                className="text-xs text-indigo-700 hover:text-indigo-900 bg-indigo-50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer"
+                className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-indigo-100 dark:border-indigo-800/60"
               >
                 📊 အသေးစိတ်
               </button>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-indigo-900 tracking-tight">
+            <h2 className="text-xl sm:text-2xl font-black text-indigo-900 dark:text-indigo-300 tracking-tight">
               {formatKs(totalCapital)}
             </h2>
-            <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+            <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
               <span>{formatLakh(totalCapital)}</span>
-              <span className="text-[10px] sm:text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] sm:text-[11px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-800/60">
                 ငွေသား ({cashAccounts.length}) + Wallets ({wallets.length})
               </span>
             </div>
@@ -730,24 +788,21 @@ export default function App() {
               setTransactionModalType('သွင်း');
               setShowTransactionModal(true);
             }}
-            className="group p-4 sm:p-5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="group p-3.5 sm:p-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowDownRight className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="flex items-center gap-3 text-left min-w-0">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-105 transition-transform shrink-0">
+                <ArrowDownRight className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
+                <div className="text-sm sm:text-base font-bold tracking-tight truncate">
                   ငွေသွင်း (Cash In)
                 </div>
-                <div className="text-[11px] sm:text-xs text-emerald-100 line-clamp-1">
-                  ငွေသားလက်ခံ (+) & Wallet (-)
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-emerald-100 font-medium truncate mt-0.5">
+                  <span>ယနေ့သွင်းငွေ</span>
+                  <span className="font-bold text-white font-mono">+{formatKs(todayIn)}</span>
                 </div>
               </div>
-            </div>
-            <div className="text-right hidden sm:block shrink-0 pl-2">
-              <div className="text-[11px] font-semibold text-emerald-100">ယနေ့ ငွေသွင်း</div>
-              <div className="text-sm font-black">+{formatKs(todayIn)}</div>
             </div>
           </button>
 
@@ -757,24 +812,21 @@ export default function App() {
               setTransactionModalType('ထုတ်');
               setShowTransactionModal(true);
             }}
-            className="group p-4 sm:p-5 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="group p-3.5 sm:p-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-md shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
           >
-            <div className="flex items-center gap-3 sm:gap-3.5 text-left">
-              <div className="w-10 h-10 sm:w-11 sm:h-11 bg-white/20 rounded-2xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-110 transition-transform shrink-0">
-                <ArrowUpRight className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="flex items-center gap-3 text-left min-w-0">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-105 transition-transform shrink-0">
+                <ArrowUpRight className="w-5 h-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-sm sm:text-base md:text-lg font-black tracking-wide truncate">
+                <div className="text-sm sm:text-base font-bold tracking-tight truncate">
                   ငွေထုတ် (Cash Out)
                 </div>
-                <div className="text-[11px] sm:text-xs text-red-100 line-clamp-1">
-                  Wallet (+) & ငွေသားထုတ်ပေး (-)
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-red-100 font-medium truncate mt-0.5">
+                  <span>ယနေ့ထုတ်ငွေ</span>
+                  <span className="font-bold text-white font-mono">-{formatKs(todayOut)}</span>
                 </div>
               </div>
-            </div>
-            <div className="text-right hidden sm:block shrink-0 pl-2">
-              <div className="text-[11px] font-semibold text-red-100">ယနေ့ ငွေထုတ်</div>
-              <div className="text-sm font-black">-{formatKs(todayOut)}</div>
             </div>
           </button>
         </div>
@@ -782,113 +834,149 @@ export default function App() {
         {/* 2 ACCOUNTS SECTIONS: 1) CASH DRAWERS & 2) WALLETS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           {/* SECTION 1: CASH ACCOUNTS */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Banknote className="w-4 h-4 text-emerald-600" />
-                <h3 className="text-sm font-bold text-slate-800">
-                  💵 လက်ငင်းငွေသား အကောင့်များ ({cashAccounts.length})
+                <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  💵 လက်ငင်းငွေသား အကောက်များ ({cashAccounts.length})
                 </h3>
               </div>
               <button
                 onClick={() => setShowCashEditModal(true)}
-                className="text-xs text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
+                className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Edit className="w-3.5 h-3.5" />
-                ငွေသားအကောင့် စီမံရန်
+                ငွေသားအကောက်များ စီမံရန်
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {cashAccounts.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedCashFilter(c.name);
-                    setSelectedWalletFilter('all');
-                    setSelectedReportDate('ALL');
-                    setShowCashReport(true);
-                  }}
-                  className="p-3.5 bg-emerald-50/40 hover:bg-emerald-50 border border-emerald-200/70 hover:border-emerald-300 rounded-xl transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900 truncate">{c.name}</span>
-                    {c.note && (
-                      <span className="text-[10px] bg-white px-1.5 py-0.5 rounded border border-emerald-200 text-emerald-700">
-                        {c.note}
-                      </span>
-                    )}
+              {cashAccounts.map((c) => {
+                const colorStyle = getAccountColorStyle(c.color, 'emerald');
+                const preset = colorStyle.preset;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedCashFilter(c.name);
+                      setSelectedWalletFilter('all');
+                      setSelectedReportDate('ALL');
+                      setShowCashReport(true);
+                    }}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] ${colorStyle.className}`}
+                  >
+                    <div
+                      className="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl"
+                      style={{ backgroundColor: preset.hex }}
+                    />
+                    <div className="flex items-center justify-between mb-1 pl-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                          style={{ backgroundColor: preset.hex }}
+                        />
+                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                          {c.name}
+                        </span>
+                      </div>
+                      {c.note && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${colorStyle.badgeClass}`}>
+                          {c.note}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-base font-black pl-1 ${colorStyle.textClass}`}>
+                      {formatKs(c.balance)}
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 pl-1 flex items-center justify-between">
+                      <span>{(c.balance / 100000).toFixed(1)} သိန်း</span>
+                      <span>{c.updatedDate}</span>
+                    </div>
                   </div>
-                  <div className="text-base font-black text-emerald-700">
-                    {formatKs(c.balance)}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
-                    {(c.balance / 100000).toFixed(1)} သိန်း • ရက်စွဲ: {c.updatedDate}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* SECTION 2: WALLETS */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3.5">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-800">
-                  🏦 Wallet / Bank အကောင့်များ ({wallets.length})
+                <Wallet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  🏦 Wallet / Bank အကောက်များ ({wallets.length})
                 </h3>
               </div>
               <button
                 onClick={() => setShowWalletModal(true)}
-                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
               >
                 <Edit className="w-3.5 h-3.5" />
-                Wallet များ စီမံရန်
+                Wallet အကောက်များ စီမံရန်
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {wallets.map((w) => (
-                <div
-                  key={w.id}
-                  onClick={() => {
-                    setSelectedWalletFilter(w.name);
-                    setSelectedCashFilter('all');
-                    setSelectedReportDate('ALL');
-                    setShowWalletReport(true);
-                  }}
-                  className="p-3.5 bg-indigo-50/40 hover:bg-indigo-50 border border-indigo-200/70 hover:border-indigo-300 rounded-xl transition-all cursor-pointer"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-xs text-slate-900">{w.name}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      {w.accountNumber || ''}
-                    </span>
+              {wallets.map((w) => {
+                const colorStyle = getAccountColorStyle(w.color, 'indigo');
+                const preset = colorStyle.preset;
+                return (
+                  <div
+                    key={w.id}
+                    onClick={() => {
+                      setSelectedWalletFilter(w.name);
+                      setSelectedCashFilter('all');
+                      setSelectedReportDate('ALL');
+                      setShowWalletReport(true);
+                    }}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] ${colorStyle.className}`}
+                  >
+                    <div
+                      className="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl"
+                      style={{ backgroundColor: preset.hex }}
+                    />
+                    <div className="flex items-center justify-between mb-1 pl-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                          style={{ backgroundColor: preset.hex }}
+                        />
+                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                          {w.name}
+                        </span>
+                      </div>
+                      {w.accountNumber && (
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                          {w.accountNumber}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`text-base font-black pl-1 ${colorStyle.textClass}`}>
+                      {formatKs(w.balance)}
+                    </div>
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 pl-1 flex items-center justify-between">
+                      <span>{(w.balance / 100000).toFixed(1)} သိန်း</span>
+                      <span>{w.updatedDate}</span>
+                    </div>
                   </div>
-                  <div className="text-base font-black text-indigo-700">
-                    {formatKs(w.balance)}
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">
-                    {(w.balance / 100000).toFixed(1)} သိန်း • ရက်စွဲ: {w.updatedDate}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
 
         {/* RECENT TRANSACTIONS SECTION */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 transition-colors">
           {/* Header Row */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <History className="w-5 h-5 text-indigo-600" />
+              <History className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-800">
+                <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
                   လတ်တလော အရောင်းအဝယ် မှတ်တမ်းများ ({filteredMainTransactions.length})
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-400 dark:text-slate-400">
                   လက်ငင်းငွေသား၊ Wallet နှင့် Wallet to Wallet အလိုက် စစ်ထုတ်ကြည့်ရှုနိုင်ပါသည်
                 </p>
               </div>
@@ -896,13 +984,13 @@ export default function App() {
 
             <div className="flex items-center gap-1.5">
               {/* View Mode Toggle */}
-              <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setMainViewMode('card')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                     mainViewMode === 'card'
-                      ? 'bg-white text-indigo-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                   title="ကတ်ပြားပုံစံ (Card View)"
                 >
@@ -913,8 +1001,8 @@ export default function App() {
                   onClick={() => setMainViewMode('table')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
                     mainViewMode === 'table'
-                      ? 'bg-white text-indigo-600 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-800'
+                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                   title="ဇယားပုံစံ (Table View)"
                 >
@@ -930,7 +1018,7 @@ export default function App() {
                   setSelectedCashFilter('all');
                   setShowAllTransactionsModal(true);
                 }}
-                className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">စာရင်းချုပ်</span> အားလုံး
@@ -939,15 +1027,15 @@ export default function App() {
           </div>
 
           {/* Filter Toolbar for Main Screen */}
-          <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs">
             {/* 1. Quick Date Filters */}
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-0.5">
               <button
                 onClick={() => setMainDateFilter('ALL')}
                 className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                   mainDateFilter === 'ALL'
                     ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 ရက်အားလုံး
@@ -957,7 +1045,7 @@ export default function App() {
                 className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                   mainDateFilter === 'TODAY'
                     ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 ယနေ့
@@ -965,29 +1053,29 @@ export default function App() {
             </div>
 
             {/* Custom Date Input */}
-            <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
               <Calendar className="w-3.5 h-3.5 text-slate-400" />
               <input
                 type="date"
                 value={mainDateFilter === 'ALL' || mainDateFilter === 'TODAY' ? todayStr : mainDateFilter}
                 onChange={(e) => setMainDateFilter(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer"
+                className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
               />
             </div>
 
             {/* 2. Wallet Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
-              <Wallet className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="text-[11px] font-bold text-slate-600">Wallet:</span>
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
+              <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Wallet:</span>
               <select
                 value={mainWalletFilter}
                 onChange={(e) => setMainWalletFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer max-w-[120px]"
+                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer max-w-[120px]"
               >
-                <option value="all">အားလုံး (All)</option>
-                <option value="none">မရွေးပါ (None)</option>
+                <option value="all" className="dark:bg-slate-800">အားလုံး (All)</option>
+                <option value="none" className="dark:bg-slate-800">မရွေးပါ (None)</option>
                 {wallets.map((w) => (
-                  <option key={w.id} value={w.name}>
+                  <option key={w.id} value={w.name} className="dark:bg-slate-800">
                     {w.name}
                   </option>
                 ))}
@@ -995,18 +1083,18 @@ export default function App() {
             </div>
 
             {/* 3. Cash Account Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
-              <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-[11px] font-bold text-slate-600">ငွေသား:</span>
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
+              <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">ငွေသား:</span>
               <select
                 value={mainCashFilter}
                 onChange={(e) => setMainCashFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer max-w-[120px]"
+                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer max-w-[120px]"
               >
-                <option value="all">အားလုံး (All)</option>
-                <option value="none">မရွေးပါ (None)</option>
+                <option value="all" className="dark:bg-slate-800">အားလုံး (All)</option>
+                <option value="none" className="dark:bg-slate-800">မရွေးပါ (None)</option>
                 {cashAccounts.map((c) => (
-                  <option key={c.id} value={c.name}>
+                  <option key={c.id} value={c.name} className="dark:bg-slate-800">
                     {c.name}
                   </option>
                 ))}
@@ -1014,17 +1102,17 @@ export default function App() {
             </div>
 
             {/* 4. Type Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white px-2 py-1 border border-slate-200 rounded-lg">
-              <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
+              <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <select
                 value={mainTypeFilter}
                 onChange={(e) => setMainTypeFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
               >
-                <option value="all">အမျိုးအစား အားလုံး</option>
-                <option value="သွင်း">ငွေသွင်း (Cash In)</option>
-                <option value="ထုတ်">ငွေထုတ် (Cash Out)</option>
-                <option value="လွှဲပြောင်း">Wallet to Wallet လွှဲပြောင်း</option>
+                <option value="all" className="dark:bg-slate-800">အမျိုးအစား အားလုံး</option>
+                <option value="သွင်း" className="dark:bg-slate-800">ငွေသွင်း (Cash In)</option>
+                <option value="ထုတ်" className="dark:bg-slate-800">ငွေထုတ် (Cash Out)</option>
+                <option value="လွှဲပြောင်း" className="dark:bg-slate-800">Wallet to Wallet လွှဲပြောင်း</option>
               </select>
             </div>
 
@@ -1033,10 +1121,10 @@ export default function App() {
               <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="ဖောက်သည်၊ ဖုန်း၊ အကောင့် ရှာရန်..."
+                placeholder="ဖောက်သည်၊ ဖုန်း၊ အကောက် ရှာရန်..."
                 value={mainSearchQuery}
                 onChange={(e) => setMainSearchQuery(e.target.value)}
-                className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-800 outline-none focus:border-indigo-400"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-400"
               />
             </div>
           </div>
@@ -1045,7 +1133,7 @@ export default function App() {
           {mainViewMode === 'card' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {filteredMainTransactions.length === 0 ? (
-                <div className="col-span-full p-8 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200 font-medium text-xs">
+                <div className="col-span-full p-8 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-xs">
                   ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော အရောင်းအဝယ် စာရင်း မရှိပါ။
                 </div>
               ) : (
@@ -1058,22 +1146,22 @@ export default function App() {
                   return (
                     <div
                       key={item.id}
-                      className="p-3.5 bg-white border border-slate-200 hover:border-indigo-300 rounded-xl shadow-xs space-y-2.5 transition-all flex flex-col justify-between"
+                      className="p-3.5 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 rounded-xl shadow-xs space-y-2.5 transition-all flex flex-col justify-between"
                     >
                       {/* Top Row: Customer & Badge */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black text-slate-900 truncate">
+                            <span className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">
                               {index + 1}. {item.customerName}
                             </span>
                             <span
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
                                 isTransfer
-                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
                                   : isCashOut
-                                  ? 'bg-red-50 text-red-700 border border-red-200'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  ? 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                               }`}
                             >
                               {isTransfer ? (
@@ -1093,25 +1181,25 @@ export default function App() {
 
                         <button
                           onClick={() => setActiveReceipt(item)}
-                          className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-md text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+                          className="px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 rounded-md text-[11px] font-bold transition-colors cursor-pointer shrink-0"
                         >
                           ဘောက်ချာ
                         </button>
                       </div>
 
                       {/* Amounts */}
-                      <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 rounded-lg text-xs">
+                      <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg text-xs border border-slate-100 dark:border-slate-800">
                         <div>
-                          <span className="text-[10px] text-slate-500 block">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
                             {isTransfer ? 'လွှဲပြောင်းငွေ:' : 'လက်ငင်းငွေ:'}
                           </span>
                           <span
                             className={`text-sm font-black ${
                               isTransfer
-                                ? 'text-sky-700'
+                                ? 'text-sky-700 dark:text-sky-400'
                                 : isCashOut
-                                ? 'text-red-600'
-                                : 'text-slate-900'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             {isTransfer
@@ -1123,42 +1211,42 @@ export default function App() {
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-slate-500 block">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
                             {isTransfer ? 'လွှဲခ/ဝန်ဆောင်ခ:' : 'မူလလွှဲငွေ:'}
                           </span>
-                          <span className="font-semibold text-slate-700">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">
                             {isTransfer ? `+${formatKs(item.commission)}` : `${item.amount.toLocaleString()} Ks`}
                           </span>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-amber-800 font-bold block">💵 ငွေသားကော်မရှင်:</span>
-                          <span className="font-bold text-amber-800">
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold block">💵 ငွေသားကော်မရှင်:</span>
+                          <span className="font-bold text-amber-700 dark:text-amber-400">
                             {cashComm > 0 ? `+${cashComm.toLocaleString()} Ks` : '-'}
                           </span>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-purple-800 font-bold block">📱 Walletကော်မရှင်:</span>
-                          <span className="font-bold text-purple-800">
+                          <span className="text-[10px] text-purple-700 dark:text-purple-400 font-bold block">📱 Walletကော်မရှင်:</span>
+                          <span className="font-bold text-purple-700 dark:text-purple-400">
                             {walletComm > 0 ? `+${walletComm.toLocaleString()} Ks` : '-'}
                           </span>
                         </div>
                       </div>
 
                       {/* Accounts Used */}
-                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100">
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-700">
                         <div className="flex items-center gap-1">
                           {isTransfer ? (
-                            <span className="px-1.5 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold text-[10px]">
+                            <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 rounded font-semibold text-[10px]">
                               🔄 {item.walletName} ➔ {item.targetWalletName || '-'}
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[10px]">
+                            <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded font-semibold text-[10px]">
                               🏦 {item.walletName}
                             </span>
                           )}
-                          <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[10px]">
+                          <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded font-semibold text-[10px]">
                             💵 {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                           </span>
                         </div>
@@ -1173,6 +1261,24 @@ export default function App() {
                   );
                 })
               )}
+
+              {filteredMainTransactions.length > 0 && (
+                <div className="col-span-full p-3 bg-slate-900 dark:bg-slate-950 text-white rounded-xl shadow-md flex flex-wrap items-center justify-between gap-2 text-xs border border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-300">📊 စုစုပေါင်း ({filteredMainTransactions.length} ခု) Total:</span>
+                    <span className={`font-black ${mainNetCash >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {mainNetCash >= 0 ? `+${formatKs(mainNetCash)}` : `-${formatKs(Math.abs(mainNetCash))}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-amber-300 font-bold">💵 ငွေသား: +{formatKs(mainTotalCashComm)}</span>
+                    <span className="text-purple-300 font-bold">📱 Wallet: +{formatKs(mainTotalWalletComm)}</span>
+                    <span className="text-emerald-300 font-black bg-white/10 px-2 py-0.5 rounded-lg border border-white/20">
+                      စုစုပေါင်း ကော်မရှင်: +{formatKs(mainGrandTotalComm)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1180,9 +1286,9 @@ export default function App() {
           {mainViewMode === 'table' && (
             <div className="space-y-1.5">
               {/* Horizontal Scroll Hint for Mobile/Tablet */}
-              <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
-                <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px] bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
-                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600 animate-pulse" />
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-0.5">
+                <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] bg-indigo-50/90 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 animate-pulse" />
                   <span>👉 ဘေးသို့ ဆွဲရွှေ့ပြီး ဇယားအပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည် (Swipe left/right)</span>
                 </div>
                 <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
@@ -1190,27 +1296,27 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="overflow-x-auto touch-pan-x overscroll-x-contain border border-slate-200/80 rounded-xl bg-white shadow-2xs">
+              <div className="overflow-x-auto overflow-y-auto max-h-[58vh] sm:max-h-[64vh] touch-pan-x overscroll-contain border border-slate-200/80 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-2xs">
                 <table className="w-full text-xs text-left border-collapse min-w-[850px]">
-                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 sticky top-0 z-10">
+                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-2xs">
                     <tr>
                       <th className="p-2.5 whitespace-nowrap min-w-[44px]">စဉ်</th>
                       <th className="p-2.5 whitespace-nowrap min-w-[120px]">နေ့စွဲ/အချိန်</th>
                       <th className="p-2.5 whitespace-nowrap min-w-[130px]">ဖောက်သည် အမည်</th>
                       <th className="p-2.5 text-center whitespace-nowrap min-w-[90px]">အမျိုးအစား</th>
                       <th className="p-2.5 text-right whitespace-nowrap min-w-[130px]">လက်ငင်း/လွှဲငွေ (Ks)</th>
-                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-amber-50/70 text-amber-900">💵 ငွေသားကော်မရှင်</th>
-                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-purple-50/70 text-purple-900">📱 Walletကော်မရှင်</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-amber-50/70 dark:bg-amber-950/40 text-amber-900 dark:text-amber-300">💵 ငွေသားကော်မရှင်</th>
+                      <th className="p-2.5 text-right whitespace-nowrap min-w-[120px] bg-purple-50/70 dark:bg-purple-950/40 text-purple-900 dark:text-purple-300">📱 Walletကော်မရှင်</th>
                       <th className="p-2.5 whitespace-nowrap min-w-[110px]">ဖုန်းနံပါတ်</th>
-                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">Wallet အကောင့်</th>
-                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">ငွေသားအကောင့်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[130px]">Wallet အကောက်</th>
+                      <th className="p-2.5 whitespace-nowrap min-w-[120px]">ငွေသားအကောက်</th>
                       <th className="p-2.5 text-center whitespace-nowrap min-w-[80px]">ပြေစာ</th>
                     </tr>
                   </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {filteredMainTransactions.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="p-6 text-center text-slate-400 font-medium">
+                      <td colSpan={11} className="p-6 text-center text-slate-400 dark:text-slate-500 font-medium">
                         ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော ဒေတာ မရှိပါ။
                       </td>
                     </tr>
@@ -1221,25 +1327,25 @@ export default function App() {
                       const actualCash = getActualCash(item);
                       const { cashComm, walletComm } = getCommissionBreakdown(item);
                       return (
-                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3 text-slate-500">{index + 1}</td>
-                          <td className="p-3 text-slate-600 whitespace-nowrap">
-                            <span className="font-semibold text-slate-800">{item.date}</span>
+                        <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 text-slate-500 dark:text-slate-400">{index + 1}</td>
+                          <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{item.date}</span>
                             {item.time && (
                               <span className="ml-1 text-[10px] text-slate-400">({item.time})</span>
                             )}
                           </td>
-                          <td className="p-3 font-bold text-slate-900 whitespace-nowrap">
+                          <td className="p-3 font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
                             {item.customerName}
                           </td>
                           <td className="p-3 text-center whitespace-nowrap">
                             <span
                               className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-bold ${
                                 isTransfer
-                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                  ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
                                   : isCashOut
-                                  ? 'bg-red-50 text-red-700 border border-red-200'
-                                  : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  ? 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                               }`}
                             >
                               {isTransfer ? (
@@ -1257,10 +1363,10 @@ export default function App() {
                           <td
                             className={`p-3 text-right font-bold whitespace-nowrap ${
                               isTransfer
-                                ? 'text-sky-700'
+                                ? 'text-sky-700 dark:text-sky-400'
                                 : isCashOut
-                                ? 'text-red-600'
-                                : 'text-slate-900'
+                                ? 'text-red-600 dark:text-red-400'
+                                : 'text-slate-900 dark:text-slate-100'
                             }`}
                           >
                             <div>
@@ -1273,36 +1379,36 @@ export default function App() {
                           </td>
 
                           {/* Cash Commission */}
-                          <td className="p-3 text-right text-amber-800 font-bold whitespace-nowrap bg-amber-50/30">
+                          <td className="p-3 text-right text-amber-800 dark:text-amber-300 font-bold whitespace-nowrap bg-amber-50/30 dark:bg-amber-950/20">
                             {cashComm > 0 ? `+${cashComm.toLocaleString()} Ks` : '-'}
                           </td>
 
                           {/* Wallet Commission */}
-                          <td className="p-3 text-right text-purple-800 font-bold whitespace-nowrap bg-purple-50/30">
+                          <td className="p-3 text-right text-purple-800 dark:text-purple-300 font-bold whitespace-nowrap bg-purple-50/30 dark:bg-purple-950/20">
                             {walletComm > 0 ? `+${walletComm.toLocaleString()} Ks` : '-'}
                           </td>
 
-                          <td className="p-3 text-slate-600 font-mono whitespace-nowrap">{item.phone}</td>
-                          <td className="p-3 text-slate-700 whitespace-nowrap">
+                          <td className="p-3 text-slate-600 dark:text-slate-400 font-mono whitespace-nowrap">{item.phone}</td>
+                          <td className="p-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">
                             {isTransfer ? (
-                              <span className="px-2 py-0.5 bg-sky-50 text-sky-700 rounded font-semibold text-[11px]">
+                              <span className="px-2 py-0.5 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 rounded font-semibold text-[11px]">
                                 {item.walletName} ➔ {item.targetWalletName || '-'}
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded font-semibold text-[11px]">
+                              <span className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded font-semibold text-[11px]">
                                 {item.walletName}
                               </span>
                             )}
                           </td>
-                          <td className="p-3 text-slate-700 whitespace-nowrap">
-                            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold text-[11px]">
+                          <td className="p-3 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                            <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded font-semibold text-[11px]">
                               {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
                             </span>
                           </td>
                           <td className="p-3 text-center whitespace-nowrap">
                             <button
                               onClick={() => setActiveReceipt(item)}
-                              className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-md text-xs font-semibold transition-colors cursor-pointer"
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-750 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 rounded-md text-xs font-semibold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-750"
                             >
                               ဘောက်ချာ
                             </button>
@@ -1312,6 +1418,32 @@ export default function App() {
                     })
                   )}
                 </tbody>
+
+                {filteredMainTransactions.length > 0 && (
+                  <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 sticky bottom-0 z-20 shadow-md">
+                    <tr>
+                      <td colSpan={4} className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-100">
+                        စုစုပေါင်း Total:
+                      </td>
+                      <td
+                        className={`p-2.5 text-right whitespace-nowrap ${
+                          mainNetCash >= 0 ? 'text-indigo-700 dark:text-indigo-400' : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {mainNetCash >= 0 ? `+${formatKs(mainNetCash)}` : `-${formatKs(Math.abs(mainNetCash))}`}
+                      </td>
+                      <td className="p-2.5 text-right whitespace-nowrap text-amber-800 dark:text-amber-300 bg-amber-100/50 dark:bg-amber-950/30">
+                        +{formatKs(mainTotalCashComm)}
+                      </td>
+                      <td className="p-2.5 text-right whitespace-nowrap text-purple-800 dark:text-purple-300 bg-purple-100/50 dark:bg-purple-950/30">
+                        +{formatKs(mainTotalWalletComm)}
+                      </td>
+                      <td colSpan={4} className="p-2.5 whitespace-nowrap text-indigo-950 dark:text-indigo-200">
+                        👉 စုစုပေါင်း ကော်မရှင်: <b>+{formatKs(mainGrandTotalComm)}</b>
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
@@ -1319,13 +1451,13 @@ export default function App() {
         </div>
 
         {/* DATA MAINTENANCE, ARCHIVE & BACKUP / RESTORE FOOTER CARD */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+        <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 transition-colors">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
-              <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                 💾 Data စနစ် လုံခြုံရေး၊ Archive (စာရင်းဟောင်းခွဲထုတ်ခြင်း) နှင့် Backup / Restore
               </h4>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
                 စာရင်းဟောင်းများကို ခွဲထုတ်ပြီး App ပေါ့ပါးသွက်လက်အောင် ပြုလုပ်နိုင်သည့်အပြင် JSON Backup များကို ဖုန်းထဲသို့ သို့မဟုတ် Drive/Telegram သို့ တိုက်ရိုက် Share သိမ်းဆည်းနိုင်ပါသည်။
               </p>
             </div>
