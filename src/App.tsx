@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Banknote,
   Wallet,
@@ -34,6 +34,7 @@ import {
   Archive,
   Sun,
   Moon,
+  Database,
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
@@ -52,6 +53,24 @@ import { RestoreConfirmModal } from './components/RestoreConfirmModal';
 import { ArchiveMaintenanceModal } from './components/ArchiveMaintenanceModal';
 import { CashReconcileModal } from './components/CashReconcileModal';
 import { WalletReconcileModal } from './components/WalletReconcileModal';
+import { PaginationControls } from './components/PaginationControls';
+import {
+  initSQLiteDatabase,
+  getTransactionsPaged,
+  getAllFilteredTransactions,
+  insertTransaction,
+  deleteTransactionById,
+  saveCashAccountsToDB,
+  getCashAccountsFromDB,
+  saveWalletsToDB,
+  getWalletsFromDB,
+  saveShopProfileToDB,
+  getShopProfileFromDB,
+  purgeOldTransactionsDB,
+  resetAllDataDB,
+  restoreDatabasePayload,
+  PagedTransactionsResult,
+} from './db/sqliteService';
 
 // Initial Clean Cash Accounts (0 Balance)
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -99,7 +118,6 @@ export default function App() {
         return INITIAL_CASH_ACCOUNTS;
       }
     }
-    // Fallback migration if single cash balance was stored previously
     const legacyCash = localStorage.getItem('app_cash_balance');
     if (legacyCash !== null) {
       const parsedVal = JSON.parse(legacyCash);
@@ -116,11 +134,28 @@ export default function App() {
     return saved !== null ? JSON.parse(saved) : INITIAL_WALLETS;
   });
 
-  // Transactions State
+  // Full transactions for aggregated calculations & report modals
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('app_transactions');
     return saved !== null ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
   });
+
+  // Database Initialization State
+  const [isDBReady, setIsDBReady] = useState<boolean>(false);
+  const [isDBLoading, setIsDBLoading] = useState<boolean>(false);
+
+  // Pagination & Paged Transactions for Main Dashboard
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(30);
+  const [pagedTransactions, setPagedTransactions] = useState<Transaction[]>([]);
+  const [totalFilteredCount, setTotalFilteredCount] = useState<number>(0);
+  const [totalPages, setTotalPages] = useState<number>(1);
+
+  // Main Dashboard Aggregates from Database
+  const [mainNetCash, setMainNetCash] = useState<number>(0);
+  const [mainTotalCashComm, setMainTotalCashComm] = useState<number>(0);
+  const [mainTotalWalletComm, setMainTotalWalletComm] = useState<number>(0);
+  const [mainGrandTotalComm, setMainGrandTotalComm] = useState<number>(0);
 
   // Modal Controls
   const [showTransactionModal, setShowTransactionModal] = useState<boolean>(false);
@@ -204,17 +239,83 @@ export default function App() {
     }
   }, []);
 
-  // Save to localStorage on state changes
+  // Initialize SQLite Database and perform sync
   useEffect(() => {
-    localStorage.setItem('app_cash_accounts', JSON.stringify(cashAccounts));
-    localStorage.setItem('app_wallets', JSON.stringify(wallets));
-    localStorage.setItem('app_transactions', JSON.stringify(transactions));
-  }, [cashAccounts, wallets, transactions]);
+    let isMounted = true;
 
-  // Aggregate Calculations
-  const totalCashBalance = cashAccounts.reduce((sum, c) => sum + c.balance, 0);
-  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
-  const totalCapital = totalCashBalance + totalWalletBalance;
+    async function initDB() {
+      try {
+        setIsDBLoading(true);
+        await initSQLiteDatabase();
+
+        const [dbCash, dbWallets, dbProfile] = await Promise.all([
+          getCashAccountsFromDB(),
+          getWalletsFromDB(),
+          getShopProfileFromDB(),
+        ]);
+
+        if (isMounted) {
+          if (dbCash && dbCash.length > 0) setCashAccounts(dbCash);
+          if (dbWallets && dbWallets.length > 0) setWallets(dbWallets);
+          if (dbProfile) setShopProfile(dbProfile);
+          setIsDBReady(true);
+        }
+      } catch (err) {
+        console.error('Failed to initialize SQLite:', err);
+      } finally {
+        if (isMounted) setIsDBLoading(false);
+      }
+    }
+
+    initDB();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Function to load paged transactions from SQLite using indexed queries
+  const fetchPagedTransactions = useCallback(
+    async (page: number, currentLimit: number) => {
+      setIsDBLoading(true);
+      try {
+        const result: PagedTransactionsResult = await getTransactionsPaged({
+          page,
+          pageSize: currentLimit,
+          dateFilter: mainDateFilter,
+          walletFilter: mainWalletFilter,
+          cashFilter: mainCashFilter,
+          typeFilter: mainTypeFilter,
+          searchQuery: mainSearchQuery,
+          todayDate: todayStr,
+        });
+
+        setPagedTransactions(result.transactions);
+        setTotalFilteredCount(result.totalCount);
+        setTotalPages(result.totalPages);
+        setMainNetCash(result.netCash);
+        setMainTotalCashComm(result.totalCashComm);
+        setMainTotalWalletComm(result.totalWalletComm);
+        setMainGrandTotalComm(result.totalCashComm + result.totalWalletComm);
+      } catch (error) {
+        console.error('Error querying SQLite transactions:', error);
+      } finally {
+        setIsDBLoading(false);
+      }
+    },
+    [mainDateFilter, mainWalletFilter, mainCashFilter, mainTypeFilter, mainSearchQuery, todayStr]
+  );
+
+  // Trigger query whenever filters or pagination change
+  useEffect(() => {
+    fetchPagedTransactions(currentPage, pageSize);
+  }, [fetchPagedTransactions, currentPage, pageSize]);
+
+  // Reset to page 1 whenever any filter criteria changes
+  const handleFilterChange = (setter: React.Dispatch<React.SetStateAction<any>>, value: any) => {
+    setter(value);
+    setCurrentPage(1);
+  };
 
   // Helper for actual cash amount
   const getActualCash = (item: Transaction): number => {
@@ -228,6 +329,11 @@ export default function App() {
     }
     return item.amount;
   };
+
+  // Aggregate Calculations for balances
+  const totalCashBalance = cashAccounts.reduce((sum, c) => sum + c.balance, 0);
+  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.balance, 0);
+  const totalCapital = totalCashBalance + totalWalletBalance;
 
   // Today Statistics
   const todayTransactions = transactions.filter((t) => t.date === todayStr);
@@ -267,8 +373,8 @@ export default function App() {
     });
   };
 
-  // Transaction Save Handler with Double-Entry Balance Updates
-  const handleSaveTransaction = (
+  // Transaction Save Handler with Double-Entry Balance Updates & SQLite Insert
+  const handleSaveTransaction = async (
     txData: Omit<Transaction, 'id'>,
     updateBalances: boolean
   ) => {
@@ -277,7 +383,12 @@ export default function App() {
       id: Date.now(),
     };
 
-    setTransactions([newTransaction, ...transactions]);
+    // 1. Insert into SQLite
+    await insertTransaction(newTransaction);
+    setTransactions((prev) => [newTransaction, ...prev]);
+
+    let updatedWalletsList = [...wallets];
+    let updatedCashList = [...cashAccounts];
 
     if (updateBalances) {
       if (txData.type === 'လွှဲပြောင်း') {
@@ -285,142 +396,155 @@ export default function App() {
         const commWallet = txData.commissionWalletName || txData.targetWalletName || txData.walletName;
         const commAmount = txData.commission || 0;
 
-        // 1. Dual Wallet Update for Transfer:
-        // Source Wallet decreases by amount
-        // Target Wallet increases by amount
-        // If commission is received in a Wallet, that wallet balance increases by commission
-        setWallets((prevWallets) =>
-          prevWallets.map((w) => {
-            let newBal = w.balance;
-            let changed = false;
+        // 1. Dual Wallet Update for Transfer
+        updatedWalletsList = updatedWalletsList.map((w) => {
+          let newBal = w.balance;
+          let changed = false;
 
-            if (w.name === txData.walletName) {
-              newBal -= txData.amount;
-              changed = true;
-            }
-            if (txData.targetWalletName && w.name === txData.targetWalletName) {
-              newBal += txData.amount;
-              changed = true;
-            }
-            if (commChannel === 'Wallet' && commAmount > 0 && w.name === commWallet) {
-              newBal += commAmount;
-              changed = true;
-            }
+          if (w.name === txData.walletName) {
+            newBal -= txData.amount;
+            changed = true;
+          }
+          if (txData.targetWalletName && w.name === txData.targetWalletName) {
+            newBal += txData.amount;
+            changed = true;
+          }
+          if (commChannel === 'Wallet' && commAmount > 0 && w.name === commWallet) {
+            newBal += commAmount;
+            changed = true;
+          }
 
-            if (changed) {
-              return { ...w, balance: newBal, updatedDate: txData.date };
-            }
-            return w;
-          })
-        );
+          if (changed) {
+            return { ...w, balance: newBal, updatedDate: txData.date };
+          }
+          return w;
+        });
 
         // 2. Cash Account Update (if commission is received in Cash)
         if (commChannel === 'Cash' && txData.cashAccountName && commAmount > 0) {
-          setCashAccounts((prevAccounts) =>
-            prevAccounts.map((c) => {
-              if (c.name === txData.cashAccountName) {
-                return { ...c, balance: c.balance + commAmount, updatedDate: txData.date };
-              }
-              return c;
-            })
-          );
+          updatedCashList = updatedCashList.map((c) => {
+            if (c.name === txData.cashAccountName) {
+              return { ...c, balance: c.balance + commAmount, updatedDate: txData.date };
+            }
+            return c;
+          });
         }
       } else {
         const isCashOut = txData.type === 'ထုတ်';
 
-        // 1. Update Selected Wallet:
-        // Cash In: Agent transfers e-money to customer -> Wallet DECREASES
-        // Cash Out: Customer transfers e-money to agent -> Wallet INCREASES
-        setWallets((prevWallets) =>
-          prevWallets.map((w) => {
-            if (w.name === txData.walletName) {
-              const newBal = isCashOut
-                ? w.balance + txData.amount
-                : w.balance - txData.amount;
-              return { ...w, balance: newBal, updatedDate: txData.date };
-            }
-            return w;
-          })
-        );
+        // 1. Update Selected Wallet
+        updatedWalletsList = updatedWalletsList.map((w) => {
+          if (w.name === txData.walletName) {
+            const newBal = isCashOut
+              ? w.balance + txData.amount
+              : w.balance - txData.amount;
+            return { ...w, balance: newBal, updatedDate: txData.date };
+          }
+          return w;
+        });
 
-        // 2. Update Selected Cash Account:
+        // 2. Update Selected Cash Account
         const cashDelta = isCashOut
           ? -(txData.amount - (txData.commission || 0))
           : txData.amount + (txData.commission || 0);
 
-        setCashAccounts((prevAccounts) =>
-          prevAccounts.map((c) => {
-            if (c.name === txData.cashAccountName) {
-              return { ...c, balance: c.balance + cashDelta, updatedDate: txData.date };
-            }
-            return c;
-          })
-        );
+        updatedCashList = updatedCashList.map((c) => {
+          if (c.name === txData.cashAccountName) {
+            return { ...c, balance: c.balance + cashDelta, updatedDate: txData.date };
+          }
+          return c;
+        });
       }
+
+      setWallets(updatedWalletsList);
+      setCashAccounts(updatedCashList);
+      await Promise.all([
+        saveWalletsToDB(updatedWalletsList),
+        saveCashAccountsToDB(updatedCashList),
+      ]);
     }
 
     setShowTransactionModal(false);
+    fetchPagedTransactions(currentPage, pageSize);
+    showToast('အရောင်းအဝယ် စာရင်းကို အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ။', 'success');
   };
 
   // Delete Transaction Handler
-  const handleDeleteTransaction = (id: number) => {
-    setTransactions(transactions.filter((t) => t.id !== id));
+  const handleDeleteTransaction = async (id: number) => {
+    await deleteTransactionById(id);
+    setTransactions((prev) => prev.filter((t) => t.id !== id));
+    fetchPagedTransactions(currentPage, pageSize);
+    showToast('စာရင်းကို ဖျက်ပြီးပါပြီ။', 'info');
   };
 
   // Cash Account Management Handlers
-  const handleAddCashAccount = (newAcc: Omit<CashAccountItem, 'id'>) => {
+  const handleAddCashAccount = async (newAcc: Omit<CashAccountItem, 'id'>) => {
     const item: CashAccountItem = {
       ...newAcc,
       id: Date.now(),
     };
-    setCashAccounts([...cashAccounts, item]);
+    const nextList = [...cashAccounts, item];
+    setCashAccounts(nextList);
+    await saveCashAccountsToDB(nextList);
   };
 
-  const handleUpdateCashAccount = (updated: CashAccountItem) => {
-    setCashAccounts(cashAccounts.map((c) => (c.id === updated.id ? updated : c)));
+  const handleUpdateCashAccount = async (updated: CashAccountItem) => {
+    const nextList = cashAccounts.map((c) => (c.id === updated.id ? updated : c));
+    setCashAccounts(nextList);
+    await saveCashAccountsToDB(nextList);
   };
 
-  const handleDeleteCashAccount = (id: number) => {
-    setCashAccounts(cashAccounts.filter((c) => c.id !== id));
+  const handleDeleteCashAccount = async (id: number) => {
+    const nextList = cashAccounts.filter((c) => c.id !== id);
+    setCashAccounts(nextList);
+    await saveCashAccountsToDB(nextList);
   };
 
   // Wallet Management Handlers
-  const handleAddWallet = (newWallet: Omit<WalletItem, 'id'>) => {
+  const handleAddWallet = async (newWallet: Omit<WalletItem, 'id'>) => {
     const item: WalletItem = {
       ...newWallet,
       id: Date.now(),
     };
-    setWallets([...wallets, item]);
+    const nextList = [...wallets, item];
+    setWallets(nextList);
+    await saveWalletsToDB(nextList);
   };
 
-  const handleUpdateWallet = (updated: WalletItem) => {
-    setWallets(wallets.map((w) => (w.id === updated.id ? updated : w)));
+  const handleUpdateWallet = async (updated: WalletItem) => {
+    const nextList = wallets.map((w) => (w.id === updated.id ? updated : w));
+    setWallets(nextList);
+    await saveWalletsToDB(nextList);
   };
 
-  const handleDeleteWallet = (id: number) => {
-    setWallets(wallets.filter((w) => w.id !== id));
+  const handleDeleteWallet = async (id: number) => {
+    const nextList = wallets.filter((w) => w.id !== id);
+    setWallets(nextList);
+    await saveWalletsToDB(nextList);
   };
 
   // Shop Profile Save Handler
-  const handleSaveShopProfile = (newProfile: ShopProfile) => {
+  const handleSaveShopProfile = async (newProfile: ShopProfile) => {
     setShopProfile(newProfile);
+    await saveShopProfileToDB(newProfile);
     localStorage.setItem('app_shop_profile', JSON.stringify(newProfile));
   };
 
-  const handleResetToZero = () => {
+  const handleResetToZero = async () => {
     if (
       confirm(
         '⚠️ သတိပေးချက်: စာရင်းမှတ်တမ်း (Transactions) အားလုံးကို ဖျက်ပစ်ပြီး လက်ငင်းငွေသားနှင့် Wallet လက်ကျန်ငွေများ အားလုံးကို 0 ချပါမည်။ သေချာပါသလား?'
       )
     ) {
+      await resetAllDataDB(todayStr);
       const resetCash = cashAccounts.map((c) => ({ ...c, balance: 0, updatedDate: todayStr }));
       const resetWallets = wallets.map((w) => ({ ...w, balance: 0, updatedDate: todayStr }));
       setCashAccounts(resetCash);
       setWallets(resetWallets);
       setTransactions([]);
-      localStorage.setItem('app_cash_accounts', JSON.stringify(resetCash));
-      localStorage.setItem('app_wallets', JSON.stringify(resetWallets));
-      localStorage.setItem('app_transactions', JSON.stringify([]));
+      setPagedTransactions([]);
+      setTotalFilteredCount(0);
+      setTotalPages(1);
       showToast('ဒေတာများ အားလုံးကို ရှင်းလင်းပြီး လက်ကျန်ငွေများ 0 သို့ သတ်မှတ်ပြီးပါပြီ။', 'success');
     }
   };
@@ -464,99 +588,36 @@ export default function App() {
     if (!file) return;
 
     try {
-      const validatedData = await readBackupFromFile(file);
-      setPendingRestoreData(validatedData);
+      const data = await readBackupFromFile(file);
+      setPendingRestoreData(data);
     } catch (err: any) {
-      showToast(err?.message || 'ဖိုင်ဖတ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်', 'error');
-    } finally {
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      showToast('Restore ဖိုင်ဖတ်၍ မရပါ: ' + (err?.message || ''), 'error');
     }
   };
 
-  // Confirm and Apply Restore Data
-  const handleConfirmRestore = () => {
-    if (!pendingRestoreData) return;
+  const handleConfirmRestore = async (data: BackupData) => {
     try {
-      setCashAccounts(pendingRestoreData.cashAccounts);
-      setWallets(pendingRestoreData.wallets);
-      setTransactions(pendingRestoreData.transactions);
-      if (pendingRestoreData.shopProfile) {
-        setShopProfile(pendingRestoreData.shopProfile);
-        localStorage.setItem('app_shop_profile', JSON.stringify(pendingRestoreData.shopProfile));
-      }
-      localStorage.setItem('app_cash_accounts', JSON.stringify(pendingRestoreData.cashAccounts));
-      localStorage.setItem('app_wallets', JSON.stringify(pendingRestoreData.wallets));
-      localStorage.setItem('app_transactions', JSON.stringify(pendingRestoreData.transactions));
+      await restoreDatabasePayload(data);
 
-      showToast('Data Restore အောင်မြင်စွာ ပြုလုပ်ပြီးပါပြီ။', 'success');
+      setCashAccounts(data.cashAccounts || []);
+      setWallets(data.wallets || []);
+      setTransactions(data.transactions || []);
+      if (data.shopProfile) setShopProfile(data.shopProfile);
+
       setPendingRestoreData(null);
-    } catch (err: any) {
-      showToast('Restore ပြုလုပ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့ပါသည်: ' + (err?.message || ''), 'error');
+      fetchPagedTransactions(1, pageSize);
+      showToast('Backup ဒေတာများကို အောင်မြင်စွာ Restore ပြန်လည်ထည့်သွင်းပြီးပါပြီ။', 'success');
+    } catch (e: any) {
+      showToast('Restore ပြုလုပ်ရာတွင် အမှားဖြစ်ပေါ်ခဲ့သည်: ' + (e?.message || ''), 'error');
     }
   };
 
-  // Data Purge Handler for Archiving
-  const handlePurgeArchived = (retainedTransactions: Transaction[], purgedCount: number) => {
+  const handlePurgeArchived = async (retainedTransactions: Transaction[], purgedCount: number) => {
     setTransactions(retainedTransactions);
-    localStorage.setItem('app_transactions', JSON.stringify(retainedTransactions));
     setShowArchiveModal(false);
-    showToast(`စာရင်းဟောင်း (${purgedCount}) ခု အား ဖျက်ထုတ်ပြီး Main Database ကို Compact ရှင်းလင်းပြီးပါပြီ။`, 'success');
+    fetchPagedTransactions(1, pageSize);
+    showToast(`စာရင်းဟောင်း (${purgedCount}) ခု အား ဖျက်ထုတ်ပြီး SQLite Database ကို Compact ရှင်းလင်းပြီးပါပြီ။`, 'success');
   };
-
-  // Filter main dashboard transactions
-  const filteredMainTransactions = transactions.filter((t) => {
-    // 1. Date Filter
-    if (mainDateFilter === 'TODAY' && t.date !== todayStr) return false;
-    if (mainDateFilter !== 'ALL' && mainDateFilter !== 'TODAY' && t.date !== mainDateFilter) return false;
-
-    // 2. Wallet Filter
-    if (mainWalletFilter === 'none') {
-      if (t.walletName && t.walletName !== 'None' && t.walletName !== '-') return false;
-    } else if (mainWalletFilter !== 'all') {
-      if (t.walletName !== mainWalletFilter && t.targetWalletName !== mainWalletFilter) return false;
-    }
-
-    // 3. Cash Account Filter
-    if (mainCashFilter === 'none') {
-      if (t.cashAccountName && t.cashAccountName !== 'None' && t.cashAccountName !== '-') return false;
-    } else if (mainCashFilter !== 'all') {
-      if (t.cashAccountName !== mainCashFilter) return false;
-    }
-
-    // 4. Type Filter
-    if (mainTypeFilter !== 'all') {
-      if (t.type !== mainTypeFilter) return false;
-    }
-
-    // 5. Search Query
-    if (!mainSearchQuery.trim()) return true;
-    const q = mainSearchQuery.toLowerCase();
-    return (
-      t.customerName.toLowerCase().includes(q) ||
-      t.phone.toLowerCase().includes(q) ||
-      t.walletName.toLowerCase().includes(q) ||
-      (t.targetWalletName && t.targetWalletName.toLowerCase().includes(q)) ||
-      (t.cashAccountName && t.cashAccountName.toLowerCase().includes(q)) ||
-      (t.note && t.note.toLowerCase().includes(q))
-    );
-  });
-
-  // Summary calculations for filtered main dashboard transactions
-  const mainNetCash = filteredMainTransactions.reduce((sum, item) => {
-    if (item.type === 'လွှဲပြောင်း') return sum;
-    const actualCash = getActualCash(item);
-    return item.type === 'သွင်း' ? sum + actualCash : sum - actualCash;
-  }, 0);
-
-  const mainTotalCashComm = filteredMainTransactions.reduce((sum, item) => {
-    return sum + getCommissionBreakdown(item).cashComm;
-  }, 0);
-
-  const mainTotalWalletComm = filteredMainTransactions.reduce((sum, item) => {
-    return sum + getCommissionBreakdown(item).walletComm;
-  }, 0);
-
-  const mainGrandTotalComm = mainTotalCashComm + mainTotalWalletComm;
 
   // If Not Activated, Show License Screen
   if (!isActivated) {
@@ -598,10 +659,15 @@ export default function App() {
                   PRO
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">
-                {shopProfile.phone
-                  ? `${shopProfile.phone} • ${todayStr}`
-                  : `ငွေသွင်း/ငွေထုတ် & Wallet လွှဲပြောင်း စီမံခန့်ခွဲမှုစနစ် • ${todayStr}`}
+              <p className="text-xs text-slate-400 font-medium mt-0.5 flex flex-wrap items-center gap-1.5">
+                <span>
+                  {shopProfile.phone
+                    ? `${shopProfile.phone} • ${todayStr}`
+                    : `ငွေသွင်း/ငွေထုတ် & Wallet လွှဲပြောင်း စီမံခန့်ခွဲမှုစနစ် • ${todayStr}`}
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded font-bold border border-emerald-200 dark:border-emerald-800">
+                  <Database className="w-2.5 h-2.5" /> SQLite Indexed DB
+                </span>
               </p>
             </div>
           </div>
@@ -655,247 +721,182 @@ export default function App() {
           </div>
         </header>
 
-        {/* TOP 4 STATS CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          {/* CARD 1: CASH ACCOUNTS TOTAL */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition-all relative group">
-            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                  💵 လက်ငင်းငွေသားပေါင်း (Cash)
-                </span>
-                <button
-                  onClick={() => setShowCashEditModal(true)}
-                  className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/60 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md text-xs transition-colors cursor-pointer"
-                  title="လက်ငင်းငွေသား အကောက်များ စီမံရန်"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setSelectedCashFilter('all');
-                  setSelectedWalletFilter('all');
-                  setShowCashReport(true);
-                }}
-                className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 bg-emerald-50 dark:bg-emerald-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-emerald-100 dark:border-emerald-800/60"
-              >
-                📊 အသေးစိတ်
-              </button>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-              {formatKs(totalCashBalance)}
-            </h2>
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-400 dark:text-slate-400">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">{formatLakh(totalCashBalance)}</span>
-              <span>{cashAccounts.length} အကောက်</span>
-            </div>
-          </div>
-
-          {/* CARD 2: WALLETS TOTAL */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:shadow-md transition-all">
-            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                  🏦 Wallet လက်ကျန်ပေါင်း
-                </span>
-                <button
-                  onClick={() => setShowWalletModal(true)}
-                  className="p-1 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-md text-xs transition-colors cursor-pointer"
-                  title="Wallet စာရင်း ထည့်သွင်း/ပြင်ဆင်ရန်"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setSelectedWalletFilter('all');
-                  setSelectedCashFilter('all');
-                  setShowWalletReport(true);
-                }}
-                className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-indigo-100 dark:border-indigo-800/60"
-              >
-                📊 အသေးစိတ်
-              </button>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-              {formatKs(totalWalletBalance)}
-            </h2>
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-400 dark:text-slate-400">
-              <span className="font-semibold text-slate-600 dark:text-slate-300">{formatLakh(totalWalletBalance)}</span>
-              <span>{wallets.length} အကောက်</span>
-            </div>
-          </div>
-
-          {/* CARD 3: COMMISSION SUMMARY */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs border-l-4 border-l-amber-500 hover:shadow-md transition-all">
-            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                📈 ကော်မရှင်ခ စာရင်း
-              </span>
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setSelectedWalletFilter('all');
-                  setSelectedCashFilter('all');
-                  setShowCommissionReport(true);
-                }}
-                className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-amber-100 dark:border-amber-800/60"
-              >
-                📊 အသေးစိတ်
-              </button>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-              +{formatKs(todayCommission)}
-            </h2>
-            <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-              <span className="text-amber-700 dark:text-amber-400 font-semibold">💵 ငွေသား: +{formatKs(todayCashComm)}</span>
-              <span className="text-purple-700 dark:text-purple-400 font-semibold">📱 Wallet: +{formatKs(todayWalletComm)}</span>
-            </div>
-          </div>
-
-          {/* CARD 4: TOTAL ALL ACCOUNTS BALANCE (CASH + WALLETS) */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs border-l-4 border-l-indigo-600 hover:shadow-md transition-all">
-            <div className="flex items-center justify-between mb-2.5 sm:mb-3">
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                🌐 စုစုပေါင်း လက်ကျန်ငွေ
-              </span>
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setShowTotalAccountsReport(true);
-                }}
-                className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-900 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-1 rounded-lg font-bold transition-colors cursor-pointer border border-indigo-100 dark:border-indigo-800/60"
-              >
-                📊 အသေးစိတ်
-              </button>
-            </div>
-            <h2 className="text-xl sm:text-2xl font-black text-indigo-900 dark:text-indigo-300 tracking-tight">
-              {formatKs(totalCapital)}
-            </h2>
-            <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-500 dark:text-slate-400">
-              <span>{formatLakh(totalCapital)}</span>
-              <span className="text-[10px] sm:text-[11px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-100 dark:border-indigo-800/60">
-                ငွေသား ({cashAccounts.length}) + Wallets ({wallets.length})
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* PRIMARY ACTION BUTTONS: CASH IN & CASH OUT */}
+        {/* PRIMARY ACTION BAR */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-          {/* BUTTON 1: CASH IN (GREEN) */}
           <button
             onClick={() => {
               setTransactionModalType('သွင်း');
               setShowTransactionModal(true);
             }}
-            className="group p-3.5 sm:p-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="flex items-center justify-center gap-2.5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 text-white font-bold shadow-lg shadow-emerald-600/20 active:scale-[0.99] transition-all cursor-pointer border border-emerald-400/30 text-sm sm:text-base"
           >
-            <div className="flex items-center gap-3 text-left min-w-0">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-105 transition-transform shrink-0">
-                <ArrowDownRight className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm sm:text-base font-bold tracking-tight truncate">
-                  ငွေသွင်း (Cash In)
-                </div>
-                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-emerald-100 font-medium truncate mt-0.5">
-                  <span>ယနေ့သွင်းငွေ</span>
-                  <span className="font-bold text-white font-mono">+{formatKs(todayIn)}</span>
-                </div>
-              </div>
-            </div>
+            <ArrowDownRight className="w-5 h-5" />
+            <span>ငွေသွင်း (Cash In)</span>
           </button>
 
-          {/* BUTTON 2: CASH OUT (RED) */}
           <button
             onClick={() => {
               setTransactionModalType('ထုတ်');
               setShowTransactionModal(true);
             }}
-            className="group p-3.5 sm:p-4 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white rounded-2xl shadow-md shadow-red-600/20 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="flex items-center justify-center gap-2.5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white font-bold shadow-lg shadow-red-600/20 active:scale-[0.99] transition-all cursor-pointer border border-red-400/30 text-sm sm:text-base"
           >
-            <div className="flex items-center gap-3 text-left min-w-0">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white backdrop-blur-xs group-hover:scale-105 transition-transform shrink-0">
-                <ArrowUpRight className="w-5 h-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm sm:text-base font-bold tracking-tight truncate">
-                  ငွေထုတ် (Cash Out)
-                </div>
-                <div className="flex items-center gap-1.5 text-xs sm:text-sm text-red-100 font-medium truncate mt-0.5">
-                  <span>ယနေ့ထုတ်ငွေ</span>
-                  <span className="font-bold text-white font-mono">-{formatKs(todayOut)}</span>
-                </div>
-              </div>
-            </div>
+            <ArrowUpRight className="w-5 h-5" />
+            <span>ငွေထုတ် (Cash Out)</span>
           </button>
         </div>
 
-        {/* 2 ACCOUNTS SECTIONS: 1) CASH DRAWERS & 2) WALLETS */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {/* SECTION 1: CASH ACCOUNTS */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 transition-colors">
+        {/* SUMMARY KPI CARDS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          {/* 1. Total Physical Cash in Hand */}
+          <div
+            onClick={() => {
+              setSelectedReportDate(todayStr);
+              setSelectedCashFilter('all');
+              setShowCashReport(true);
+            }}
+            className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-emerald-300 dark:hover:border-emerald-600 cursor-pointer transition-all flex flex-col justify-between group"
+          >
             <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">💵 လက်ငင်းငွေသား စုစုပေါင်း</span>
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <Banknote className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {formatKs(totalCashBalance)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                ငွေပုံး {cashAccounts.length} ခု • {formatLakh(totalCashBalance)}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Total E-Money Wallets */}
+          <div
+            onClick={() => {
+              setSelectedReportDate(todayStr);
+              setSelectedWalletFilter('all');
+              setShowWalletReport(true);
+            }}
+            className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-indigo-300 dark:hover:border-indigo-600 cursor-pointer transition-all flex flex-col justify-between group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">🏦 Wallet လက်ကျန် စုစုပေါင်း</span>
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                <Wallet className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {formatKs(totalWalletBalance)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                အကောင့် {wallets.length} ခု • {formatLakh(totalWalletBalance)}
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Total Combined Capital */}
+          <div
+            onClick={() => {
+              setSelectedReportDate(todayStr);
+              setShowTotalAccountsReport(true);
+            }}
+            className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-violet-300 dark:hover:border-violet-600 cursor-pointer transition-all flex flex-col justify-between group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">💎 မတည်ရင်းနှီးငွေ စုစုပေါင်း</span>
+              <div className="p-2 bg-violet-50 dark:bg-violet-950/60 text-violet-600 dark:text-violet-400 rounded-xl group-hover:bg-violet-600 group-hover:text-white transition-colors">
+                <Coins className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-lg sm:text-xl md:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                {formatKs(totalCapital)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                ငွေသား + Wallet • {formatLakh(totalCapital)}
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Today Total Commission */}
+          <div
+            onClick={() => {
+              setSelectedReportDate(todayStr);
+              setShowCommissionReport(true);
+            }}
+            className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-amber-300 dark:hover:border-amber-600 cursor-pointer transition-all flex flex-col justify-between group"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">📈 ယနေ့ရရှိသော ကော်မရှင်</span>
+              <div className="p-2 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-xl group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-lg sm:text-xl md:text-2xl font-black text-amber-800 dark:text-amber-400 tracking-tight">
+                +{formatKs(todayCommission)}
+              </div>
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                💵 ငွေသား: +{formatKs(todayCashComm)} • 📱 Wallet: +{formatKs(todayWalletComm)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION: CASH DRAWERS & WALLETS DETAIL LIST */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Left: Cash In Hand Drawers & Safe Boxes */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  💵 လက်ငင်းငွေသား အကောက်များ ({cashAccounts.length})
-                </h3>
+                <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                  <Banknote className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    လက်ငင်းငွေသား အကောင့်များ (Cash Drawers & Boxes)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    စုစုပေါင်း {cashAccounts.length} ခု • {formatKs(totalCashBalance)}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowCashEditModal(true)}
-                className="text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700 flex items-center gap-1"
               >
                 <Edit className="w-3.5 h-3.5" />
-                ငွေသားအကောက်များ စီမံရန်
+                <span>စီမံရန်</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {cashAccounts.map((c) => {
-                const colorStyle = getAccountColorStyle(c.color, 'emerald');
-                const preset = colorStyle.preset;
+              {cashAccounts.map((account) => {
+                const colorStyle = getAccountColorStyle(account.colorTheme || 'emerald');
                 return (
                   <div
-                    key={c.id}
-                    onClick={() => {
-                      setSelectedCashFilter(c.name);
-                      setSelectedWalletFilter('all');
-                      setSelectedReportDate('ALL');
-                      setShowCashReport(true);
-                    }}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] ${colorStyle.className}`}
+                    key={account.id}
+                    className={`p-3 rounded-xl border ${colorStyle.className} flex flex-col justify-between space-y-1.5 transition-colors`}
                   >
-                    <div
-                      className="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl"
-                      style={{ backgroundColor: preset.hex }}
-                    />
-                    <div className="flex items-center justify-between mb-1 pl-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
-                          style={{ backgroundColor: preset.hex }}
-                        />
-                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
-                          {c.name}
-                        </span>
-                      </div>
-                      {c.note && (
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${colorStyle.badgeClass}`}>
-                          {c.note}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`text-xs font-black ${colorStyle.textClass} truncate`}>{account.name}</span>
+                      {account.note && (
+                        <span className="text-[10px] text-slate-400 bg-white/70 dark:bg-slate-800/70 px-1.5 py-0.5 rounded shrink-0">
+                          {account.note}
                         </span>
                       )}
                     </div>
-                    <div className={`text-base font-black pl-1 ${colorStyle.textClass}`}>
-                      {formatKs(c.balance)}
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 pl-1 flex items-center justify-between">
-                      <span>{(c.balance / 100000).toFixed(1)} သိန်း</span>
-                      <span>{c.updatedDate}</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className={`text-sm sm:text-base font-black ${colorStyle.textClass}`}>
+                        {formatKs(account.balance)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {formatLakh(account.balance)}
+                      </span>
                     </div>
                   </div>
                 );
@@ -903,65 +904,54 @@ export default function App() {
             </div>
           </div>
 
-          {/* SECTION 2: WALLETS */}
-          <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 transition-colors">
-            <div className="flex items-center justify-between">
+          {/* Right: Wallets Accounts List */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
-                <Wallet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                  🏦 Wallet / Bank အကောက်များ ({wallets.length})
-                </h3>
+                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                  <Wallet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    Wallet အကောင့်များ (E-Money Accounts)
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    စုစုပေါင်း {wallets.length} ခု • {formatKs(totalWalletBalance)}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={() => setShowWalletModal(true)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-bold flex items-center gap-1 cursor-pointer"
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700 flex items-center gap-1"
               >
                 <Edit className="w-3.5 h-3.5" />
-                Wallet အကောက်များ စီမံရန်
+                <span>စီမံရန်</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {wallets.map((w) => {
-                const colorStyle = getAccountColorStyle(w.color, 'indigo');
-                const preset = colorStyle.preset;
+              {wallets.map((wallet) => {
+                const colorStyle = getAccountColorStyle(wallet.colorTheme || 'indigo');
                 return (
                   <div
-                    key={w.id}
-                    onClick={() => {
-                      setSelectedWalletFilter(w.name);
-                      setSelectedCashFilter('all');
-                      setSelectedReportDate('ALL');
-                      setShowWalletReport(true);
-                    }}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer relative overflow-hidden shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] ${colorStyle.className}`}
+                    key={wallet.id}
+                    className={`p-3 rounded-xl border ${colorStyle.className} flex flex-col justify-between space-y-1.5 transition-colors`}
                   >
-                    <div
-                      className="absolute top-0 left-0 bottom-0 w-1.5 rounded-l-xl"
-                      style={{ backgroundColor: preset.hex }}
-                    />
-                    <div className="flex items-center justify-between mb-1 pl-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
-                          style={{ backgroundColor: preset.hex }}
-                        />
-                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
-                          {w.name}
-                        </span>
-                      </div>
-                      {w.accountNumber && (
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                          {w.accountNumber}
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`text-xs font-black ${colorStyle.textClass} truncate`}>{wallet.name}</span>
+                      {wallet.accountNumber && (
+                        <span className="text-[10px] text-slate-400 font-mono bg-white/70 dark:bg-slate-800/70 px-1.5 py-0.5 rounded shrink-0">
+                          {wallet.accountNumber}
                         </span>
                       )}
                     </div>
-                    <div className={`text-base font-black pl-1 ${colorStyle.textClass}`}>
-                      {formatKs(w.balance)}
-                    </div>
-                    <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 pl-1 flex items-center justify-between">
-                      <span>{(w.balance / 100000).toFixed(1)} သိန်း</span>
-                      <span>{w.updatedDate}</span>
+                    <div className="flex items-baseline justify-between">
+                      <span className={`text-sm sm:text-base font-black ${colorStyle.textClass}`}>
+                        {formatKs(wallet.balance)}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        {formatLakh(wallet.balance)}
+                      </span>
                     </div>
                   </div>
                 );
@@ -970,153 +960,119 @@ export default function App() {
           </div>
         </div>
 
-        {/* RECENT TRANSACTIONS SECTION */}
-        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-4 transition-colors">
-          {/* Header Row */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* SECTION: TODAY / FILTERED RECENT TRANSACTIONS (PAGINATED WITH SQLITE) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3.5 transition-colors">
+          {/* Header & View Toggle */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div className="flex items-center gap-2">
-              <History className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+              <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                <History className="w-4 h-4" />
+              </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100">
-                  လတ်တလော အရောင်းအဝယ် မှတ်တမ်းများ ({filteredMainTransactions.length})
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                  <span>အရောင်းအဝယ် စာရင်းမှတ်တမ်းများ (Transactions Ledger)</span>
+                  {isDBLoading && <Loader2 className="w-3.5 h-3.5 text-indigo-600 animate-spin" />}
                 </h3>
-                <p className="text-[11px] text-slate-400 dark:text-slate-400">
-                  လက်ငင်းငွေသား၊ Wallet နှင့် Wallet to Wallet အလိုက် စစ်ထုတ်ကြည့်ရှုနိုင်ပါသည်
+                <p className="text-[11px] text-slate-400">
+                  SQLite Index ဖြင့် ရှာဖွေမှု အမြန်နှုန်း မြှင့်တင်ထားပြီး တစ်ကြိမ်လျှင် <b>{pageSize}</b> စင်း စီ ထုတ်ပြသနေပါသည်
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              {/* View Mode Toggle */}
-              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2">
+              {/* View Switcher: Card vs Table */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-700">
                 <button
                   onClick={() => setMainViewMode('card')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                     mainViewMode === 'card'
                       ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
-                  title="ကတ်ပြားပုံစံ (Card View)"
+                  title="ကတ်ပြားပုံစံ"
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
-                  <span>Card ပုံစံ</span>
+                  <span className="hidden sm:inline text-[11px]">Card</span>
                 </button>
                 <button
                   onClick={() => setMainViewMode('table')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  className={`p-1.5 rounded-md text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
                     mainViewMode === 'table'
                       ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                      : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
-                  title="ဇယားပုံစံ (Table View)"
+                  title="ဇယားပုံစံ"
                 >
                   <TableIcon className="w-3.5 h-3.5" />
-                  <span>ဇယား</span>
+                  <span className="hidden sm:inline text-[11px]">ဇယား</span>
                 </button>
               </div>
-
-              <button
-                onClick={() => {
-                  setSelectedReportDate(todayStr);
-                  setSelectedWalletFilter('all');
-                  setSelectedCashFilter('all');
-                  setShowAllTransactionsModal(true);
-                }}
-                className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">စာရင်းချုပ်</span> အားလုံး
-              </button>
             </div>
           </div>
 
-          {/* Filter Toolbar for Main Screen */}
-          <div className="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs">
-            {/* 1. Quick Date Filters */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-0.5">
-              <button
-                onClick={() => setMainDateFilter('ALL')}
-                className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                  mainDateFilter === 'ALL'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
+          {/* FILTER TOOLBAR */}
+          <div className="flex flex-wrap items-center gap-2 p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs">
+            {/* 1. Date Filter */}
+            <div className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <select
+                value={mainDateFilter}
+                onChange={(e) => handleFilterChange(setMainDateFilter, e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
               >
-                ရက်အားလုံး
-              </button>
-              <button
-                onClick={() => setMainDateFilter('TODAY')}
-                className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                  mainDateFilter === 'TODAY'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
-              >
-                ယနေ့
-              </button>
+                <option value="ALL">📅 ရက်စွဲ အားလုံး (All)</option>
+                <option value="TODAY">ယနေ့ ({todayStr})</option>
+              </select>
             </div>
 
-            {/* Custom Date Input */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <input
-                type="date"
-                value={mainDateFilter === 'ALL' || mainDateFilter === 'TODAY' ? todayStr : mainDateFilter}
-                onChange={(e) => setMainDateFilter(e.target.value)}
-                className="bg-transparent text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
-              />
-            </div>
-
-            {/* 2. Wallet Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
-              <Wallet className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Wallet:</span>
+            {/* 2. Wallet Filter */}
+            <div className="flex items-center gap-1">
+              <Wallet className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <select
                 value={mainWalletFilter}
-                onChange={(e) => setMainWalletFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer max-w-[120px]"
+                onChange={(e) => handleFilterChange(setMainWalletFilter, e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
               >
-                <option value="all" className="dark:bg-slate-800">အားလုံး (All)</option>
-                <option value="none" className="dark:bg-slate-800">မရွေးပါ (None)</option>
+                <option value="all">🏦 Wallet အားလုံး</option>
+                <option value="none">မပါဝင်သော စာရင်းများ</option>
                 {wallets.map((w) => (
-                  <option key={w.id} value={w.name} className="dark:bg-slate-800">
+                  <option key={w.id} value={w.name}>
                     {w.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 3. Cash Account Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
-              <Banknote className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">ငွေသား:</span>
+            {/* 3. Cash Filter */}
+            <div className="flex items-center gap-1">
+              <Banknote className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <select
                 value={mainCashFilter}
-                onChange={(e) => setMainCashFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer max-w-[120px]"
+                onChange={(e) => handleFilterChange(setMainCashFilter, e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
               >
-                <option value="all" className="dark:bg-slate-800">အားလုံး (All)</option>
-                <option value="none" className="dark:bg-slate-800">မရွေးပါ (None)</option>
+                <option value="all">💵 ငွေသားပုံး အားလုံး</option>
+                <option value="none">မပါဝင်သော စာရင်းများ</option>
                 {cashAccounts.map((c) => (
-                  <option key={c.id} value={c.name} className="dark:bg-slate-800">
+                  <option key={c.id} value={c.name}>
                     {c.name}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* 4. Type Filter Dropdown */}
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-lg">
+            {/* 4. Type Filter */}
+            <div className="flex items-center gap-1">
               <Filter className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <select
                 value={mainTypeFilter}
-                onChange={(e) => setMainTypeFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none cursor-pointer"
+                onChange={(e) => handleFilterChange(setMainTypeFilter, e.target.value)}
+                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none"
               >
-                <option value="all" className="dark:bg-slate-800">အမျိုးအစား အားလုံး</option>
-                <option value="သွင်း" className="dark:bg-slate-800">ငွေသွင်း (Cash In)</option>
-                <option value="ထုတ်" className="dark:bg-slate-800">ငွေထုတ် (Cash Out)</option>
-                <option value="လွှဲပြောင်း" className="dark:bg-slate-800">Wallet to Wallet လွှဲပြောင်း</option>
+                <option value="all">အမျိုးအစား အားလုံး</option>
+                <option value="သွင်း">ငွေသွင်း</option>
+                <option value="ထုတ်">ငွေထုတ်</option>
+                <option value="လွှဲပြောင်း">လွှဲပြောင်း</option>
               </select>
             </div>
 
@@ -1127,7 +1083,7 @@ export default function App() {
                 type="text"
                 placeholder="ဖောက်သည်၊ ဖုန်း၊ အကောက် ရှာရန်..."
                 value={mainSearchQuery}
-                onChange={(e) => setMainSearchQuery(e.target.value)}
+                onChange={(e) => handleFilterChange(setMainSearchQuery, e.target.value)}
                 className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-400"
               />
             </div>
@@ -1135,141 +1091,144 @@ export default function App() {
 
           {/* VIEW 1: RESPONSIVE CARDS VIEW */}
           {mainViewMode === 'card' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filteredMainTransactions.length === 0 ? (
-                <div className="col-span-full p-8 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-xs">
-                  ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော အရောင်းအဝယ် စာရင်း မရှိပါ။
-                </div>
-              ) : (
-                filteredMainTransactions.map((item, index) => {
-                  const isCashOut = item.type === 'ထုတ်';
-                  const isTransfer = item.type === 'လွှဲပြောင်း';
-                  const actualCash = getActualCash(item);
-                  const { cashComm, walletComm } = getCommissionBreakdown(item);
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {pagedTransactions.length === 0 ? (
+                  <div className="col-span-full p-8 text-center text-slate-400 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700 font-medium text-xs">
+                    ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော အရောင်းအဝယ် စာရင်း မရှိပါ။
+                  </div>
+                ) : (
+                  pagedTransactions.map((item, index) => {
+                    const globalIndex = (currentPage - 1) * pageSize + index;
+                    const isCashOut = item.type === 'ထုတ်';
+                    const isTransfer = item.type === 'လွှဲပြောင်း';
+                    const actualCash = getActualCash(item);
+                    const { cashComm, walletComm } = getCommissionBreakdown(item);
 
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3.5 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 rounded-xl shadow-xs space-y-2.5 transition-all flex flex-col justify-between"
-                    >
-                      {/* Top Row: Customer & Badge */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">
-                              {index + 1}. {item.customerName}
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-3.5 bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-500 rounded-xl shadow-xs space-y-2.5 transition-all flex flex-col justify-between"
+                      >
+                        {/* Top Row: Customer & Badge */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-slate-900 dark:text-slate-100 truncate">
+                                {globalIndex + 1}. {item.customerName}
+                              </span>
+                              <span
+                                className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                                  isTransfer
+                                    ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                                    : isCashOut
+                                    ? 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                    : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                }`}
+                              >
+                                {isTransfer ? (
+                                  <ArrowLeftRight className="w-3 h-3" />
+                                ) : isCashOut ? (
+                                  <ArrowUpRight className="w-3 h-3" />
+                                ) : (
+                                  <ArrowDownRight className="w-3 h-3" />
+                                )}
+                                {item.type}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              {item.date} {item.time && `• ${item.time}`} {item.phone && `• ${item.phone}`}
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => setActiveReceipt(item)}
+                            className="px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 rounded-md text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+                          >
+                            ဘောက်ချာ
+                          </button>
+                        </div>
+
+                        {/* Amounts */}
+                        <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg text-xs border border-slate-100 dark:border-slate-800">
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              {isTransfer ? 'လွှဲပြောင်းငွေ:' : 'လက်ငင်းငွေ:'}
                             </span>
                             <span
-                              className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
+                              className={`text-sm font-black ${
                                 isTransfer
-                                  ? 'bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800'
+                                  ? 'text-sky-700 dark:text-sky-400'
                                   : isCashOut
-                                  ? 'bg-red-50 dark:bg-red-950/60 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-                                  : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : 'text-slate-900 dark:text-slate-100'
                               }`}
                             >
-                              {isTransfer ? (
-                                <ArrowLeftRight className="w-3 h-3" />
-                              ) : isCashOut ? (
-                                <ArrowUpRight className="w-3 h-3" />
-                              ) : (
-                                <ArrowDownRight className="w-3 h-3" />
-                              )}
-                              {item.type}
-                            </span>
-                          </div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {item.date} {item.time && `• ${item.time}`} {item.phone && `• ${item.phone}`}
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => setActiveReceipt(item)}
-                          className="px-2 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 hover:text-indigo-600 dark:hover:text-indigo-300 text-slate-700 dark:text-slate-200 rounded-md text-[11px] font-bold transition-colors cursor-pointer shrink-0"
-                        >
-                          ဘောက်ချာ
-                        </button>
-                      </div>
-
-                      {/* Amounts */}
-                      <div className="grid grid-cols-2 gap-2 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-lg text-xs border border-slate-100 dark:border-slate-800">
-                        <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                            {isTransfer ? 'လွှဲပြောင်းငွေ:' : 'လက်ငင်းငွေ:'}
-                          </span>
-                          <span
-                            className={`text-sm font-black ${
-                              isTransfer
-                                ? 'text-sky-700 dark:text-sky-400'
+                              {isTransfer
+                                ? formatKs(item.amount)
                                 : isCashOut
-                                ? 'text-red-600 dark:text-red-400'
-                                : 'text-slate-900 dark:text-slate-100'
-                            }`}
-                          >
-                            {isTransfer
-                              ? formatKs(item.amount)
-                              : isCashOut
-                              ? `- ${actualCash.toLocaleString()} Ks`
-                              : `+ ${actualCash.toLocaleString()} Ks`}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
-                            {isTransfer ? 'လွှဲခ/ဝန်ဆောင်ခ:' : 'မူလလွှဲငွေ:'}
-                          </span>
-                          <span className="font-semibold text-slate-700 dark:text-slate-300">
-                            {isTransfer ? `+${formatKs(item.commission)}` : `${item.amount.toLocaleString()} Ks`}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold block">💵 ငွေသားကော်မရှင်:</span>
-                          <span className="font-bold text-amber-700 dark:text-amber-400">
-                            {cashComm > 0 ? `+${cashComm.toLocaleString()} Ks` : '-'}
-                          </span>
-                        </div>
-
-                        <div>
-                          <span className="text-[10px] text-purple-700 dark:text-purple-400 font-bold block">📱 Walletကော်မရှင်:</span>
-                          <span className="font-bold text-purple-700 dark:text-purple-400">
-                            {walletComm > 0 ? `+${walletComm.toLocaleString()} Ks` : '-'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Accounts Used */}
-                      <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-700">
-                        <div className="flex items-center gap-1">
-                          {isTransfer ? (
-                            <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 rounded font-semibold text-[10px]">
-                              🔄 {item.walletName} ➔ {item.targetWalletName || '-'}
+                                ? `- ${actualCash.toLocaleString()} Ks`
+                                : `+ ${actualCash.toLocaleString()} Ks`}
                             </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded font-semibold text-[10px]">
-                              🏦 {item.walletName}
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                              {isTransfer ? 'လွှဲခ/ဝန်ဆောင်ခ:' : 'မူလလွှဲငွေ:'}
+                            </span>
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                              {isTransfer ? `+${formatKs(item.commission)}` : `${item.amount.toLocaleString()} Ks`}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold block">💵 ငွေသားကော်မရှင်:</span>
+                            <span className="font-bold text-amber-700 dark:text-amber-400">
+                              {cashComm > 0 ? `+${cashComm.toLocaleString()} Ks` : '-'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[10px] text-purple-700 dark:text-purple-400 font-bold block">📱 Walletကော်မရှင်:</span>
+                            <span className="font-bold text-purple-700 dark:text-purple-400">
+                              {walletComm > 0 ? `+${walletComm.toLocaleString()} Ks` : '-'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Accounts Used */}
+                        <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center gap-1">
+                            {isTransfer ? (
+                              <span className="px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 rounded font-semibold text-[10px]">
+                                🔄 {item.walletName} ➔ {item.targetWalletName || '-'}
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded font-semibold text-[10px]">
+                                🏦 {item.walletName}
+                              </span>
+                            )}
+                            <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded font-semibold text-[10px]">
+                              💵 {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
+                            </span>
+                          </div>
+
+                          {item.note && (
+                            <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]">
+                              {item.note}
                             </span>
                           )}
-                          <span className="px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 rounded font-semibold text-[10px]">
-                            💵 {item.cashAccountName || 'ဆိုင်ရှေ့ငွေပုံး'}
-                          </span>
                         </div>
-
-                        {item.note && (
-                          <span className="text-[10px] text-slate-400 italic truncate max-w-[120px]">
-                            {item.note}
-                          </span>
-                        )}
                       </div>
-                    </div>
-                  );
-                })
-              )}
+                    );
+                  })
+                )}
+              </div>
 
-              {filteredMainTransactions.length > 0 && (
-                <div className="col-span-full p-3 bg-slate-900 dark:bg-slate-950 text-white rounded-xl shadow-md flex flex-wrap items-center justify-between gap-2 text-xs border border-slate-800">
+              {totalFilteredCount > 0 && (
+                <div className="p-3 bg-slate-900 dark:bg-slate-950 text-white rounded-xl shadow-md flex flex-wrap items-center justify-between gap-2 text-xs border border-slate-800">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-300">📊 စုစုပေါင်း ({filteredMainTransactions.length} ခု) Total:</span>
+                    <span className="font-bold text-slate-300">📊 စုစုပေါင်း ({totalFilteredCount} ခု) Total:</span>
                     <span className={`font-black ${mainNetCash >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {mainNetCash >= 0 ? `+${formatKs(mainNetCash)}` : `-${formatKs(Math.abs(mainNetCash))}`}
                     </span>
@@ -1283,12 +1242,26 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* PAGINATION CONTROLS (30 Items Per Page Default) */}
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalCount={totalFilteredCount}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setCurrentPage(1);
+                }}
+                isLoading={isDBLoading}
+              />
             </div>
           )}
 
           {/* VIEW 2: TABLE VIEW */}
           {mainViewMode === 'table' && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {/* Horizontal Scroll Hint for Mobile/Tablet */}
               <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-0.5">
                 <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] bg-indigo-50/90 dark:bg-indigo-950/60 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800">
@@ -1296,7 +1269,7 @@ export default function App() {
                   <span>👉 ဘေးသို့ ဆွဲရွှေ့ပြီး ဇယားအပြည့်အစုံ ကြည့်ရှုနိုင်ပါသည် (Swipe left/right)</span>
                 </div>
                 <span className="text-slate-400 font-medium text-[11px] hidden sm:inline">
-                  {filteredMainTransactions.length} ခု
+                  စာရင်း စုစုပေါင်း: {totalFilteredCount} ခု
                 </span>
               </div>
 
@@ -1318,21 +1291,22 @@ export default function App() {
                     </tr>
                   </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                  {filteredMainTransactions.length === 0 ? (
+                  {pagedTransactions.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="p-6 text-center text-slate-400 dark:text-slate-500 font-medium">
                         ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော ဒေတာ မရှိပါ။
                       </td>
                     </tr>
                   ) : (
-                    filteredMainTransactions.map((item, index) => {
+                    pagedTransactions.map((item, index) => {
+                      const globalIndex = (currentPage - 1) * pageSize + index;
                       const isCashOut = item.type === 'ထုတ်';
                       const isTransfer = item.type === 'လွှဲပြောင်း';
                       const actualCash = getActualCash(item);
                       const { cashComm, walletComm } = getCommissionBreakdown(item);
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                          <td className="p-3 text-slate-500 dark:text-slate-400">{index + 1}</td>
+                          <td className="p-3 text-slate-500 dark:text-slate-400">{globalIndex + 1}</td>
                           <td className="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap">
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{item.date}</span>
                             {item.time && (
@@ -1423,7 +1397,7 @@ export default function App() {
                   )}
                 </tbody>
 
-                {filteredMainTransactions.length > 0 && (
+                {totalFilteredCount > 0 && (
                   <tfoot className="bg-slate-100 dark:bg-slate-800 font-bold border-t-2 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 sticky bottom-0 z-20 shadow-md">
                     <tr>
                       <td colSpan={4} className="p-2.5 text-right font-bold text-slate-900 dark:text-slate-100">
@@ -1450,6 +1424,20 @@ export default function App() {
                 )}
               </table>
             </div>
+
+            {/* PAGINATION CONTROLS */}
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalCount={totalFilteredCount}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(newSize) => {
+                setPageSize(newSize);
+                setCurrentPage(1);
+              }}
+              isLoading={isDBLoading}
+            />
           </div>
         )}
         </div>
@@ -1459,10 +1447,10 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
             <div>
               <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                💾 Data စနစ် လုံခြုံရေး၊ Archive (စာရင်းဟောင်းခွဲထုတ်ခြင်း) နှင့် Backup / Restore
+                💾 SQLite Data စနစ်၊ Database Indexing၊ Archive နှင့် Backup / Restore
               </h4>
               <p className="text-xs text-slate-400 dark:text-slate-400 mt-0.5">
-                စာရင်းဟောင်းများကို ခွဲထုတ်ပြီး App ပေါ့ပါးသွက်လက်အောင် ပြုလုပ်နိုင်သည့်အပြင် JSON Backup များကို ဖုန်းထဲသို့ သို့မဟုတ် Drive/Telegram သို့ တိုက်ရိုက် Share သိမ်းဆည်းနိုင်ပါသည်။
+                Transaction သန်းချီအတွက် SQLite Database Indexing နှင့် 30-Row Pagination စနစ် ထည့်သွင်းထားပြီး JSON Backup များကို ဖုန်းထဲသို့ သို့မဟုတ် Drive/Telegram သို့ Share သိမ်းဆည်းနိုင်ပါသည်။
               </p>
             </div>
 

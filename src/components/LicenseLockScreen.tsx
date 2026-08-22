@@ -116,7 +116,16 @@ export const LicenseLockScreen: React.FC<LicenseLockScreenProps> = ({ deviceId, 
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-3 sm:p-6 overflow-y-auto relative">
+      {/* Top Corner Developer & System Info */}
+      <div className="w-full max-w-lg sm:max-w-none sm:w-auto flex justify-end mb-3 sm:mb-0 sm:absolute sm:top-6 sm:right-6 z-10">
+        <div className="bg-slate-800/90 border border-slate-700/90 backdrop-blur-sm rounded-xl px-4 py-2.5 shadow-xl text-right space-y-0.5">
+          <div className="text-indigo-400 font-bold text-xs sm:text-sm tracking-wide">NextUnit Tech</div>
+          <div className="text-slate-200 font-semibold font-mono text-[11px] sm:text-xs">Contact : 09254351071</div>
+          <div className="text-slate-400 text-[10px] sm:text-[11px] font-medium">Money Agent POS System (v.1.1.0)</div>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-slate-100 my-auto">
         <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
           <KeyRound className="w-7 h-7" />

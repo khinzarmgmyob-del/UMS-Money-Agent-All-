@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { Transaction, WalletItem, CashAccountItem } from '../types';
 import { getTodayFormatted, formatKs } from '../utils/formatters';
+import { PaginationControls } from './PaginationControls';
 
 interface ReportModalProps {
   title: string;
@@ -85,7 +86,14 @@ export const ReportModal: React.FC<ReportModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   const [showSummaryChips, setShowSummaryChips] = useState(true);
+  const [page, setPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(30);
   const todayStr = getTodayFormatted();
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [selectedReportDate, selectedWalletFilter, selectedCashFilter, searchQuery]);
 
   // Filter with date, wallet filter, cash filter, and search query
   const filteredData = data.filter((item) => {
@@ -126,6 +134,9 @@ export const ReportModal: React.FC<ReportModalProps> = ({
       (item.note && item.note.toLowerCase().includes(query))
     );
   });
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const pagedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
 
   // Calculate actual cash flows
   const totalIn = filteredData
@@ -430,7 +441,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   ရွေးချယ်ထားသော စံနှုန်းများနှင့် ကိုက်ညီသော ဒေတာ မရှိပါ။
                 </div>
               ) : (
-                filteredData.map((item, index) => {
+                pagedData.map((item, index) => {
+                  const globalIndex = (page - 1) * pageSize + index;
                   const isCashOut = item.type === 'ထုတ်';
                   const isTransfer = item.type === 'လွှဲပြောင်း';
                   const actualCash = getActualCashAmount(item);
@@ -446,7 +458,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
                             <span className="text-xs font-black text-slate-900 truncate">
-                              {index + 1}. {item.customerName}
+                              {globalIndex + 1}. {item.customerName}
                             </span>
                             <span
                               className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ${
@@ -587,12 +599,24 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* Pagination Controls */}
+              {filteredData.length > 0 && (
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalCount={filteredData.length}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
             </div>
           )}
 
           {/* VIEW 2: FULL TABLE VIEW */}
           {viewMode === 'table' && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {/* Horizontal Scroll Hint for Mobile/Tablet */}
               <div className="flex items-center justify-between text-xs text-slate-500 px-0.5">
                 <div className="flex items-center gap-1.5 text-indigo-700 font-semibold text-[11px] bg-indigo-50/90 px-2.5 py-1 rounded-lg border border-indigo-100">
@@ -633,7 +657,8 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredData.map((item, index) => {
+                    pagedData.map((item, index) => {
+                      const globalIndex = (page - 1) * pageSize + index;
                       const isCashOut = item.type === 'ထုတ်';
                       const isTransfer = item.type === 'လွှဲပြောင်း';
                       const actualCash = getActualCashAmount(item);
@@ -641,7 +666,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({
 
                       return (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-2.5 text-slate-500 font-medium">{index + 1}</td>
+                          <td className="p-2.5 text-slate-500 font-medium">{globalIndex + 1}</td>
                           <td className="p-2.5 text-slate-600 whitespace-nowrap">
                             <div className="font-semibold text-slate-800">{item.date}</div>
                             {item.time && <div className="text-[10px] text-slate-400">{item.time}</div>}
@@ -773,6 +798,18 @@ export const ReportModal: React.FC<ReportModalProps> = ({
                 )}
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {filteredData.length > 0 && (
+                <PaginationControls
+                  currentPage={page}
+                  totalPages={totalPages}
+                  totalCount={filteredData.length}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
             </div>
           )}
         </div>
