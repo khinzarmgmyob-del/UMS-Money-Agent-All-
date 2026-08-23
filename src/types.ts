@@ -57,3 +57,14 @@ export interface BackupData {
   exportedAt: string;
   version?: string;
 }
+
+export type NetworkMode = 'server' | 'client';
+
+export interface NetworkConfig {
+  mode: NetworkMode;
+  masterServerIp: string; // e.g. "http://192.168.1.100:3000"
+  localServerPort: number; // e.g. 3000
+  lastConnectedAt?: string;
+  deviceLabel?: string;
+}
+

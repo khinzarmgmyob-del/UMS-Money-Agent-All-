@@ -35,8 +35,9 @@ import {
   Sun,
   Moon,
   Database,
+  Wifi,
 } from 'lucide-react';
-import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile } from './types';
+import { Transaction, WalletItem, CashAccountItem, BackupData, TransactionType, ShopProfile, NetworkConfig, NetworkMode } from './types';
 import { getDeviceId, generateActivationKey, verifyActivationKey } from './utils/license';
 import { getTodayFormatted, getCurrentTimeFormatted, formatKs, formatLakh } from './utils/formatters';
 import { exportBackupData, readBackupFromFile } from './utils/backupManager';
@@ -54,8 +55,9 @@ import { ArchiveMaintenanceModal } from './components/ArchiveMaintenanceModal';
 import { CashReconcileModal } from './components/CashReconcileModal';
 import { WalletReconcileModal } from './components/WalletReconcileModal';
 import { PaginationControls } from './components/PaginationControls';
+import { NetworkSettingsModal } from './components/NetworkSettingsModal';
 import {
-  initSQLiteDatabase,
+  initDataService as initSQLiteDatabase,
   getTransactionsPaged,
   getAllFilteredTransactions,
   insertTransaction,
@@ -70,7 +72,9 @@ import {
   resetAllDataDB,
   restoreDatabasePayload,
   PagedTransactionsResult,
-} from './db/sqliteService';
+  getNetworkConfig,
+  subscribeNetworkStatus,
+} from './services/dataService';
 
 // Initial Clean Cash Accounts (0 Balance)
 const INITIAL_CASH_ACCOUNTS: CashAccountItem[] = [
@@ -173,6 +177,31 @@ export default function App() {
   const [showCashReconcileReport, setShowCashReconcileReport] = useState<boolean>(false);
   const [showWalletReconcileReport, setShowWalletReconcileReport] = useState<boolean>(false);
   const [showArchiveModal, setShowArchiveModal] = useState<boolean>(false);
+  const [showNetworkModal, setShowNetworkModal] = useState<boolean>(false);
+
+  // Wi-Fi Network Mode (Master / Client) State
+  const [networkConfig, setNetworkConfig] = useState<NetworkConfig>(() => getNetworkConfig());
+  const [networkStatus, setNetworkStatus] = useState<{
+    isClient: boolean;
+    isConnected: boolean;
+    error?: string;
+    mode: NetworkMode;
+  }>({
+    isClient: getNetworkConfig().mode === 'client',
+    isConnected: true,
+    mode: getNetworkConfig().mode,
+  });
+
+  // Subscribe to real-time Network Status and Wi-Fi alerts
+  useEffect(() => {
+    const unsubscribe = subscribeNetworkStatus((status) => {
+      setNetworkStatus(status);
+      if (status.error && status.isClient) {
+        showToast(`⚠️ Master Server ချိတ်ဆက်မှု: ${status.error}`, 'error');
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const [activeReceipt, setActiveReceipt] = useState<Transaction | null>(null);
 
@@ -673,6 +702,28 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Wi-Fi Master / Client Network Mode Button */}
+            <button
+              onClick={() => setShowNetworkModal(true)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                networkConfig.mode === 'server'
+                  ? 'bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                  : networkStatus.isConnected
+                  ? 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/60 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+                  : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
+              }`}
+              title="Wi-Fi Master / Client ကွန်ရက် ဆက်တင်များ"
+            >
+              <Wifi className="w-3.5 h-3.5" />
+              <span>
+                {networkConfig.mode === 'server'
+                  ? '🟢 Master Server'
+                  : networkStatus.isConnected
+                  ? '🔵 Client Mode'
+                  : '🔴 Server Disconnected'}
+              </span>
+            </button>
+
             <button
               onClick={() => setShowShopProfileModal(true)}
               className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-colors cursor-pointer border border-slate-200/60 dark:border-slate-700/60"
@@ -1488,6 +1539,15 @@ export default function App() {
                 <Archive className="w-4 h-4" />
                 🗄️ စာရင်းဟောင်း Archive &amp; Compact
               </button>
+
+              <button
+                onClick={() => setShowNetworkModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-600/20 cursor-pointer"
+                title="တူညီသော Wi-Fi ကွန်ရက်တွင် Master Server သို့မဟုတ် Client Mode ချိတ်ဆက်မှု စီမံမည်"
+              >
+                <Wifi className="w-4 h-4" />
+                📡 Wi-Fi ကွန်ရက် (Master / Client)
+              </button>
             </div>
           </div>
 
@@ -1747,6 +1807,42 @@ export default function App() {
           onClose={() => setShowArchiveModal(false)}
           onPurgeArchived={handlePurgeArchived}
           onShowToast={showToast}
+        />
+      )}
+
+      {/* 14. Wi-Fi Network Mode (Master / Client) Settings Modal */}
+      {showNetworkModal && (
+        <NetworkSettingsModal
+          onClose={() => setShowNetworkModal(false)}
+          onConfigChanged={async (newCfg) => {
+            setNetworkConfig(newCfg);
+            setIsDBLoading(true);
+            try {
+              await initSQLiteDatabase();
+              const [dbCash, dbWallets, dbProfile, allTx] = await Promise.all([
+                getCashAccountsFromDB(),
+                getWalletsFromDB(),
+                getShopProfileFromDB(),
+                getAllFilteredTransactions(),
+              ]);
+              if (dbCash && dbCash.length > 0) setCashAccounts(dbCash);
+              if (dbWallets && dbWallets.length > 0) setWallets(dbWallets);
+              if (dbProfile) setShopProfile(dbProfile);
+              setTransactions(allTx || []);
+              await fetchPagedTransactions(1, pageSize);
+              setCurrentPage(1);
+              showToast(
+                newCfg.mode === 'server'
+                  ? '🟢 Master Server Mode သို့ ပြောင်းလဲပြီး ဒေတာများ ချိတ်ဆက်ပြီးပါပြီ'
+                  : `🔵 Client Mode: ${newCfg.masterServerIp} သို့ ချိတ်ဆက်ပြီးပါပြီ`,
+                'success'
+              );
+            } catch (err: any) {
+              showToast(err?.message || 'ဒေတာ ဆွဲယူမှု မအောင်မြင်ပါ', 'error');
+            } finally {
+              setIsDBLoading(false);
+            }
+          }}
         />
       )}
     </div>

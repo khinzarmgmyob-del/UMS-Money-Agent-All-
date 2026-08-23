@@ -131,6 +131,8 @@ export async function initSQLiteDatabase(): Promise<boolean> {
 
         -- Performance Indexes for Millions of Records
         CREATE INDEX IF NOT EXISTS idx_tx_date_id ON transactions(date DESC, id DESC);
+        CREATE INDEX IF NOT EXISTS idx_tx_created_at ON transactions(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_tx_id ON transactions(id);
         CREATE INDEX IF NOT EXISTS idx_tx_wallet ON transactions(walletName, date DESC);
         CREATE INDEX IF NOT EXISTS idx_tx_target_wallet ON transactions(targetWalletName, date DESC);
         CREATE INDEX IF NOT EXISTS idx_tx_cash ON transactions(cashAccountName, date DESC);
