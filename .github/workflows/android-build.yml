@@ -26,17 +26,13 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: |
-          npm install
-          npm rebuild
+        run: npm install
 
-      - name: Fix Tailwind Oxide Native Binding
-        run: npm install @tailwindcss/oxide-linux-x64-gnu --save-optional || true
+      - name: Build Web Code
+        run: npm run build
 
-      - name: Build Web Assets & Sync Capacitor
-        run: |
-          npm run build
-          npx cap sync android
+      - name: Sync Capacitor using npx yes
+        run: npx --yes @capacitor/cli sync android
 
       - name: Build Android Debug APK
         run: |
