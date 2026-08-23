@@ -54,6 +54,7 @@ import { RestoreConfirmModal } from './components/RestoreConfirmModal';
 import { ArchiveMaintenanceModal } from './components/ArchiveMaintenanceModal';
 import { CashReconcileModal } from './components/CashReconcileModal';
 import { WalletReconcileModal } from './components/WalletReconcileModal';
+import { MonthlyCashWalletFlowReportModal } from './components/MonthlyCashWalletFlowReportModal';
 import { PaginationControls } from './components/PaginationControls';
 import { NetworkSettingsModal } from './components/NetworkSettingsModal';
 import {
@@ -176,6 +177,7 @@ export default function App() {
   const [showTotalAccountsReport, setShowTotalAccountsReport] = useState<boolean>(false);
   const [showCashReconcileReport, setShowCashReconcileReport] = useState<boolean>(false);
   const [showWalletReconcileReport, setShowWalletReconcileReport] = useState<boolean>(false);
+  const [showMonthlyFlowReport, setShowMonthlyFlowReport] = useState<boolean>(false);
   const [showArchiveModal, setShowArchiveModal] = useState<boolean>(false);
   const [showNetworkModal, setShowNetworkModal] = useState<boolean>(false);
 
@@ -277,16 +279,18 @@ export default function App() {
         setIsDBLoading(true);
         await initSQLiteDatabase();
 
-        const [dbCash, dbWallets, dbProfile] = await Promise.all([
+        const [dbCash, dbWallets, dbProfile, allTx] = await Promise.all([
           getCashAccountsFromDB(),
           getWalletsFromDB(),
           getShopProfileFromDB(),
+          getAllFilteredTransactions(),
         ]);
 
         if (isMounted) {
           if (dbCash && dbCash.length > 0) setCashAccounts(dbCash);
           if (dbWallets && dbWallets.length > 0) setWallets(dbWallets);
           if (dbProfile) setShopProfile(dbProfile);
+          if (allTx && allTx.length > 0) setTransactions(allTx);
           setIsDBReady(true);
         }
       } catch (err) {
@@ -1532,6 +1536,15 @@ export default function App() {
               </button>
 
               <button
+                onClick={() => setShowMonthlyFlowReport(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-600/20 cursor-pointer"
+                title="SUMMARY OF MONTHLY CASH FLOW STATEMENT - တစ်လချင်းစီ၏ ရက်အလိုက် ငွေသား နှင့် Wallet ဝင်/ထွက် ရှင်းတမ်း"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                📊 Monthly Cash and Wallet Flow Report
+              </button>
+
+              <button
                 onClick={() => setShowArchiveModal(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-700 hover:to-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/20 cursor-pointer"
                 title="လွန်ခဲ့သော ၆ လ/၁ နှစ် စာရင်းဟောင်းများကို ခွဲထုတ်သိမ်းဆည်းပြီး Database ကို Compact ရှင်းလင်းမည်"
@@ -1791,7 +1804,18 @@ export default function App() {
         />
       )}
 
-      {/* 13. Archive & Maintenance Modal */}
+      {/* 13. Monthly Cash and Wallet Flow Report Modal */}
+      {showMonthlyFlowReport && (
+        <MonthlyCashWalletFlowReportModal
+          onClose={() => setShowMonthlyFlowReport(false)}
+          wallets={wallets}
+          cashAccounts={cashAccounts}
+          transactions={transactions}
+          shopProfile={shopProfile}
+        />
+      )}
+
+      {/* 14. Archive & Maintenance Modal */}
       {showArchiveModal && (
         <ArchiveMaintenanceModal
           transactions={transactions}
