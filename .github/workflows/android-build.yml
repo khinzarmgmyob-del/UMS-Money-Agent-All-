@@ -25,10 +25,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Dependencies
-        run: |
-          npm install
-          npm install -g @capacitor/cli
+      - name: Install Project Dependencies
+        run: npm install
+
+      - name: Force Install Capacitor Android Package
+        run: npm install @capacitor/core@latest @capacitor/android@latest @capacitor/cli@latest --save
 
       - name: Build Web Code
         run: npm run build
@@ -39,20 +40,15 @@ jobs:
             cp -r dist www
           fi
 
-      - name: Create Android Platform if Missing
+      - name: Add and Sync Android Platform
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
+          npx cap add android || true
           npx cap sync android
 
       - name: Build Android Debug APK
         run: |
           cd android
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper
-          fi
-          chmod +x gradlew
+          chmod +x gradlew || true
           ./gradlew assembleDebug
 
       - name: Upload APK Artifact
