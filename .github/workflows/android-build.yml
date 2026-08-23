@@ -26,12 +26,14 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/android
 
       - name: Build Web Code
         run: npm run build
 
-      - name: Fix WebDir for Capacitor (if using dist)
+      - name: Fix WebDir for Capacitor
         run: |
           if [ -d "dist" ] && [ ! -d "www" ]; then
             cp -r dist www
