@@ -14,10 +14,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js (v22)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -25,11 +25,10 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Project Dependencies
-        run: npm install
-
-      - name: Force Install Capacitor Android Package
-        run: npm install @capacitor/core@latest @capacitor/android@latest @capacitor/cli@latest --save
+      - name: Install Dependencies
+        run: |
+          npm install
+          npm install @capacitor/core @capacitor/android @capacitor/cli
 
       - name: Build Web Code
         run: npm run build
