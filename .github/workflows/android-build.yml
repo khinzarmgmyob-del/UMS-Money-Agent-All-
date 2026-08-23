@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Setup Java JDK
         uses: actions/setup-java@v4
@@ -26,7 +26,12 @@ jobs:
           java-version: '17'
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
+          npm rebuild
+
+      - name: Fix Tailwind Oxide Native Binding
+        run: npm install @tailwindcss/oxide-linux-x64-gnu --save-optional || true
 
       - name: Build Web Assets & Sync Capacitor
         run: |
