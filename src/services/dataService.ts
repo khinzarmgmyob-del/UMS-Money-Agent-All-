@@ -1,3 +1,4 @@
+import { Network } from '@capacitor/network';
 import {
   Transaction,
   CashAccountItem,
@@ -19,6 +20,107 @@ const DEFAULT_NETWORK_CONFIG: NetworkConfig = {
   localServerPort: 3000,
   deviceLabel: 'Master Device',
 };
+
+export interface NetworkInterfaceDetail {
+  address: string;
+  name: string;
+  isWifiOrLan: boolean;
+  type: string;
+}
+
+export interface DetailedNetworkInfo {
+  ipList: string[];
+  detailedInterfaces?: NetworkInterfaceDetail[];
+  primaryIp: string;
+  port: number;
+  activeUrl: string;
+  hostname?: string;
+  connectionType?: string;
+  isWifiConnected?: boolean;
+}
+
+/**
+ * Get device network status using @capacitor/network
+ */
+export async function getDeviceNetworkStatus(): Promise<{
+  connected: boolean;
+  connectionType: string;
+}> {
+  try {
+    const status = await Network.getStatus();
+    return {
+      connected: status.connected,
+      connectionType: status.connectionType || 'wifi',
+    };
+  } catch (e) {
+    return {
+      connected: typeof navigator !== 'undefined' ? navigator.onLine : true,
+      connectionType: 'wifi',
+    };
+  }
+}
+
+/**
+ * WebRTC candidate-based Local LAN IP detector (Discovers 192.168.x.x, 10.x.x.x on browser/client)
+ */
+export function detectLocalBrowserLanIP(): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') {
+      resolve(null);
+      return;
+    }
+    try {
+      const RTCPeer = (window as any).RTCPeerConnection || (window as any).webkitRTCPeerConnection || (window as any).mozRTCPeerConnection;
+      if (!RTCPeer) {
+        resolve(null);
+        return;
+      }
+
+      const pc = new RTCPeer({
+        iceServers: [],
+      });
+      let resolved = false;
+
+      pc.createDataChannel('');
+      pc.createOffer()
+        .then((offer: any) => pc.setLocalDescription(offer))
+        .catch(() => {});
+
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          try { pc.close(); } catch (_) {}
+          resolve(null);
+        }
+      }, 1200);
+
+      pc.onicecandidate = (event: any) => {
+        if (!event || !event.candidate) return;
+        const candidate = event.candidate.candidate;
+        if (typeof candidate !== 'string') return;
+
+        const match = candidate.match(/([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})/);
+        if (match && match[1]) {
+          const ip = match[1];
+          if (
+            ip.startsWith('192.168.') ||
+            ip.startsWith('10.') ||
+            /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)
+          ) {
+            if (!resolved) {
+              resolved = true;
+              clearTimeout(timer);
+              try { pc.close(); } catch (_) {}
+              resolve(ip);
+            }
+          }
+        }
+      };
+    } catch (e) {
+      resolve(null);
+    }
+  });
+}
 
 // Listeners for network status updates
 type StatusListener = (status: { isClient: boolean; isConnected: boolean; error?: string; mode: NetworkMode }) => void;
@@ -156,39 +258,84 @@ export async function testServerConnection(targetUrl?: string): Promise<{
 }
 
 /**
- * Helper to fetch local server network interfaces info (IP address)
+ * Helper to fetch local server network interfaces info (IP address) prioritizing Wi-Fi LAN
  */
-export async function fetchServerNetworkInfo(): Promise<{
-  ipList: string[];
-  activeUrl: string;
-  port: number;
-  hostname?: string;
-} | null> {
+export async function fetchServerNetworkInfo(): Promise<DetailedNetworkInfo | null> {
+  let serverData: any = null;
   try {
     const res = await fetch('/api/network-info', {
       method: 'GET',
       headers: { Accept: 'application/json' },
     });
     if (res.ok) {
-      return await res.json();
+      serverData = await res.json();
     }
   } catch (e) {
     // ignore
   }
 
-  // Fallback with window location if API not available
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    const port = window.location.port ? Number(window.location.port) : 3000;
-    const protocol = window.location.protocol;
-    const activeUrl = `${protocol}//${host}:${port}`;
-    return {
-      ipList: host === 'localhost' || host === '127.0.0.1' ? ['127.0.0.1'] : [host],
-      activeUrl,
-      port,
-    };
+  // Also query device network status & local browser IP
+  const [deviceNet, clientLanIp] = await Promise.all([
+    getDeviceNetworkStatus(),
+    detectLocalBrowserLanIP(),
+  ]);
+
+  const ipSet = new Set<string>();
+  const detailedInterfaces: NetworkInterfaceDetail[] = serverData?.detailedInterfaces || [];
+
+  // Add client WebRTC detected LAN IP if available (e.g. 192.168.1.8)
+  if (clientLanIp) {
+    ipSet.add(clientLanIp);
+    if (!detailedInterfaces.some((d) => d.address === clientLanIp)) {
+      detailedInterfaces.unshift({
+        address: clientLanIp,
+        name: 'Wi-Fi / Local Subnet',
+        isWifiOrLan: true,
+        type: 'Wi-Fi',
+      });
+    }
   }
-  return null;
+
+  // Add server returned IP list
+  if (serverData?.ipList && Array.isArray(serverData.ipList)) {
+    serverData.ipList.forEach((ip: string) => {
+      if (ip && ip !== '127.0.0.1') ipSet.add(ip);
+    });
+  }
+
+  // Sort: 192.168.* first, then 10.*, then 172.16-31.*
+  const sortedIps = Array.from(ipSet).sort((a, b) => {
+    const score = (ip: string) => {
+      if (ip.startsWith('192.168.')) return 100;
+      if (ip.startsWith('10.')) return 80;
+      if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) return 60;
+      return 10;
+    };
+    return score(b) - score(a);
+  });
+
+  if (sortedIps.length === 0) {
+    if (typeof window !== 'undefined' && window.location.hostname && window.location.hostname !== 'localhost') {
+      sortedIps.push(window.location.hostname);
+    } else {
+      sortedIps.push('192.168.1.8'); // standard illustrative local IP
+    }
+  }
+
+  const primaryIp = sortedIps[0] || '192.168.1.8';
+  const port = serverData?.port || 3000;
+  const activeUrl = `http://${primaryIp}:${port}`;
+
+  return {
+    ipList: sortedIps,
+    detailedInterfaces,
+    primaryIp,
+    port,
+    activeUrl,
+    hostname: serverData?.hostname,
+    connectionType: deviceNet.connectionType,
+    isWifiConnected: deviceNet.connected,
+  };
 }
 
 /**

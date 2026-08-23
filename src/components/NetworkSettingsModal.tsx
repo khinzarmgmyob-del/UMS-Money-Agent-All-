@@ -101,11 +101,7 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
   };
 
   // Primary server address for display
-  const primaryDisplayUrl = serverInfo
-    ? `http://${serverInfo.ipList[0] || '127.0.0.1'}:${serverInfo.port || 3000}`
-    : typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:3000`
-    : 'http://192.168.1.100:3000';
+  const primaryDisplayUrl = serverInfo?.activeUrl || (serverInfo?.primaryIp ? `http://${serverInfo.primaryIp}:3000` : 'http://192.168.1.8:3000');
 
   return (
     <div
@@ -196,31 +192,31 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                     </span>
                     <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                      Master Server အသက်ဝင်နေပါသည် (Port 3000)
+                      Master Server အသက်ဝင်နေပါသည် (0.0.0.0:3000)
                     </span>
                   </div>
-                  <span className="text-[10px] bg-indigo-200/70 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-2 py-0.5 rounded-full font-bold">
-                    REST API Ready
+                  <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full font-bold">
+                    📡 Wi-Fi Ready
                   </span>
                 </div>
 
                 <div>
                   <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                    <span>ဒီစက်၏ Local IP Address (Client များချိတ်ရန်):</span>
+                    <span>ဒီစက်၏ Wi-Fi Local IP (Client စက်များထံ ထည့်ရန်):</span>
                     <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">Port 3000</span>
                   </div>
 
-                  <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-indigo-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-indigo-200 dark:border-slate-700 shadow-xs">
                     <input
                       type="text"
                       readOnly
                       value={primaryDisplayUrl}
-                      className="flex-1 bg-transparent text-slate-800 dark:text-white font-mono text-xs sm:text-sm font-bold outline-hidden px-1"
+                      className="flex-1 bg-transparent text-indigo-700 dark:text-indigo-300 font-mono text-xs sm:text-sm font-bold outline-hidden px-1"
                     />
                     <button
                       type="button"
                       onClick={() => handleCopy(primaryDisplayUrl)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+                      className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-sm"
                     >
                       {copiedUrl === primaryDisplayUrl ? (
                         <>
@@ -230,26 +226,44 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>Copy</span>
+                          <span>Copy IP</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {serverInfo && serverInfo.ipList.length > 1 && (
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold">အခြား IP များ: </span>
-                    {serverInfo.ipList.slice(1).map((ip) => (
-                      <span
-                        key={ip}
-                        onClick={() => handleCopy(`http://${ip}:${serverInfo.port}`)}
-                        className="inline-block bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-mono text-[10px] mr-1.5 cursor-pointer hover:border-indigo-400"
-                        title="Click to copy"
-                      >
-                        http://{ip}:{serverInfo.port}
-                      </span>
-                    ))}
+                {/* Available Network Interfaces chips */}
+                {serverInfo && serverInfo.ipList.length > 0 && (
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-indigo-100 dark:border-indigo-900/30">
+                    <span className="font-semibold block mb-1">ရရှိနိုင်သော ကွန်ရက်လိပ်စာများ: </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {serverInfo.ipList.map((ip) => {
+                        const url = `http://${ip}:${serverInfo.port || 3000}`;
+                        const isPrimary = url === primaryDisplayUrl;
+                        return (
+                          <button
+                            type="button"
+                            key={ip}
+                            onClick={() => handleCopy(url)}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg border font-mono text-[10px] cursor-pointer transition-colors ${
+                              isPrimary
+                                ? 'bg-indigo-100 dark:bg-indigo-900/70 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-200 font-bold'
+                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-indigo-400 text-slate-600 dark:text-slate-300'
+                            }`}
+                            title="Click to copy this IP"
+                          >
+                            <Wifi className="w-3 h-3 text-indigo-500 shrink-0" />
+                            <span>{url}</span>
+                            {copiedUrl === url ? (
+                              <Check className="w-2.5 h-2.5 text-emerald-500" />
+                            ) : (
+                              <Copy className="w-2.5 h-2.5 opacity-60" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -258,12 +272,11 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
               <div className="bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 space-y-2 text-xs text-slate-600 dark:text-slate-300">
                 <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
                   <Shield className="w-4 h-4 text-emerald-500" />
-                  <span>Master Server အင်္ဂါရပ်များ</span>
+                  <span>Master Server ညွှန်ကြားချက်များ</span>
                 </div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  <li>စက်တွင်း Indexed SQLite Database ဖြင့် ဒေတာ သန်းချီ မြန်ဆန်စွာ သိမ်းဆည်းထားပါသည်။</li>
-                  <li>အခြား ဝန်ထမ်းဖုန်း/တက်ဘလက်များမှ Client Mode ဖြင့် ဤ Master IP ကို ချိတ်ဆက်ကာ စာရင်းသွင်း/ထုတ် ပြုလုပ်နိုင်ပါသည်။</li>
-                  <li>Pagination စနစ်ဖြင့် စာရင်းအစင်း ၃၀ စီ စက္ကန့်ပိုင်းအတွင်း ဆွဲတင်ပေးပါသည်။</li>
+                  <li>Express Server သည် host <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded text-slate-800 dark:text-slate-200">0.0.0.0:3000</code> တွင် အလုပ်လုပ်နေပြီး တူညီသော Wi-Fi ကွန်ရက်ရှိ စက်အားလုံး ချိတ်ဆက်နိုင်ပါသည်။</li>
+                  <li>အခြား ဝန်ထမ်းဖုန်း/တက်ဘလက်များမှ <strong>Client Mode</strong> တွင် အထက်ပါ IP Address (ဥပမာ: <code className="font-mono bg-indigo-50 dark:bg-indigo-950 px-1 rounded text-indigo-600 dark:text-indigo-300">{primaryDisplayUrl}</code>) ကို ထည့်သွင်းချိတ်ဆက်ရုံဖြင့် စာရင်းများ တပြိုင်တည်း ရေး/ဖတ် နိုင်ပါမည်။</li>
                 </ul>
               </div>
             </div>

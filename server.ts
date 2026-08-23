@@ -74,29 +74,67 @@ function saveServerData(data: ServerData) {
   }
 }
 
-/**
- * Get all available Local IPv4 network addresses
- */
-function getLocalIpAddresses(): string[] {
-  const interfaces = os.networkInterfaces();
-  const addresses: string[] = [];
+interface NetworkInterfaceDetail {
+  address: string;
+  name: string;
+  isWifiOrLan: boolean;
+  type: string;
+}
 
-  for (const name of Object.keys(interfaces)) {
-    const ifaceList = interfaces[name];
-    if (ifaceList) {
-      for (const iface of ifaceList) {
-        // Skip over non-IPv4 and internal (i.e. 127.0.0.1) addresses
-        if (iface.family === 'IPv4' && !iface.internal) {
-          addresses.push(iface.address);
-        }
+/**
+ * Get detailed Local IPv4 network addresses prioritizing Wi-Fi / LAN
+ */
+function getDetailedNetworkInterfaces(): NetworkInterfaceDetail[] {
+  const interfaces = os.networkInterfaces();
+  const list: NetworkInterfaceDetail[] = [];
+
+  for (const [name, ifaceList] of Object.entries(interfaces)) {
+    if (!ifaceList) continue;
+    for (const iface of ifaceList) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        const addr = iface.address;
+        const lowerName = name.toLowerCase();
+        const isWifi =
+          lowerName.includes('wi-fi') ||
+          lowerName.includes('wifi') ||
+          lowerName.includes('wlan') ||
+          lowerName.includes('wl');
+        const isEthernet =
+          lowerName.includes('eth') ||
+          lowerName.includes('en') ||
+          lowerName.includes('ethernet');
+
+        list.push({
+          address: addr,
+          name,
+          isWifiOrLan: isWifi || isEthernet || addr.startsWith('192.168.') || addr.startsWith('10.'),
+          type: isWifi ? 'Wi-Fi' : isEthernet ? 'Ethernet' : 'LAN Interface',
+        });
       }
     }
   }
 
+  // Sort Wi-Fi / Local LAN IPs to the top (192.168.* first, then 10.*, then 172.16-31.*)
+  list.sort((a, b) => {
+    const getScore = (item: NetworkInterfaceDetail) => {
+      if (item.address.startsWith('192.168.')) return 100;
+      if (item.address.startsWith('10.')) return 80;
+      if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(item.address)) return 60;
+      if (item.isWifiOrLan) return 40;
+      return 10;
+    };
+    return getScore(b) - getScore(a);
+  });
+
+  return list;
+}
+
+function getLocalIpAddresses(): string[] {
+  const detailed = getDetailedNetworkInterfaces();
+  const addresses = detailed.map((d) => d.address);
   if (addresses.length === 0) {
     addresses.push('127.0.0.1');
   }
-
   return addresses;
 }
 
@@ -141,10 +179,12 @@ async function startServer() {
 
   // Network Interfaces Info Endpoint
   app.get('/api/network-info', (req, res) => {
-    const ipList = getLocalIpAddresses();
+    const detailed = getDetailedNetworkInterfaces();
+    const ipList = detailed.map((d) => d.address);
     const primaryIp = ipList[0] || '127.0.0.1';
     res.json({
       ipList,
+      detailedInterfaces: detailed,
       primaryIp,
       port: PORT,
       activeUrl: `http://${primaryIp}:${PORT}`,
@@ -565,13 +605,14 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    const ips = getLocalIpAddresses();
+  const server = app.listen(3000, '0.0.0.0', () => {
+    console.log('Server running on port 3000');
+    const detailed = getDetailedNetworkInterfaces();
     console.log(`\n======================================================`);
-    console.log(`🚀 Money Agent POS Server is running!`);
-    console.log(`📡 Local Network Server URL(s):`);
-    ips.forEach((ip) => {
-      console.log(`   👉 http://${ip}:${PORT}`);
+    console.log(`🚀 Money Agent POS Master Server running on port 3000 (0.0.0.0)`);
+    console.log(`📡 Local Wi-Fi / Network IP Addresses for Client terminals:`);
+    detailed.forEach((d) => {
+      console.log(`   👉 http://${d.address}:3000 (${d.type} - ${d.name})`);
     });
     console.log(`======================================================\n`);
   });
