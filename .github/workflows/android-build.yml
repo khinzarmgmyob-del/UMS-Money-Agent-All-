@@ -28,25 +28,30 @@ jobs:
       - name: Install Dependencies
         run: |
           npm install
-          npm install @capacitor/core @capacitor/android @capacitor/cli
+          npm install -g @capacitor/cli
 
       - name: Build Web Code
         run: npm run build
 
-      - name: Fix WebDir for Capacitor
+      - name: Ensure WWW Directory
         run: |
           if [ -d "dist" ] && [ ! -d "www" ]; then
             cp -r dist www
           fi
 
-      - name: Add and Sync Android Platform
+      - name: Create Android Platform if Missing
         run: |
-          npx cap add android || true
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
           npx cap sync android
 
       - name: Build Android Debug APK
         run: |
           cd android
+          if [ ! -f "gradlew" ]; then
+            gradle wrapper
+          fi
           chmod +x gradlew
           ./gradlew assembleDebug
 
