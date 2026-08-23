@@ -153,21 +153,36 @@ async function startServer() {
     allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
   }));
 
+  // Explicit CORS & Pre-flight Header Enforcement on all routes
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+    next();
+  });
+
   // ==========================================
   // REST API ENDPOINTS (Master Server Mode)
   // ==========================================
 
   // Health Check Endpoint (Used by Client Mode 'Test Connection')
   app.get('/api/health', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     const ipList = getLocalIpAddresses();
-    res.json({
+    res.status(200).json({
       status: 'ok',
+      serverStatus: 'RUNNING',
       mode: 'server',
       version: '1.1.0',
       systemName: 'Money Agent POS Master Server',
       hostname: os.hostname(),
       ipList,
       primaryIp: ipList[0] || '127.0.0.1',
+      port: PORT,
       serverTime: new Date().toISOString(),
       uptimeSec: Math.floor(process.uptime()),
     });

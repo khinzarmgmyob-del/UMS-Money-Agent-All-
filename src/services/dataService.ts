@@ -1,4 +1,5 @@
 import { Network } from '@capacitor/network';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import {
   Transaction,
   CashAccountItem,
@@ -37,6 +38,136 @@ export interface DetailedNetworkInfo {
   hostname?: string;
   connectionType?: string;
   isWifiConnected?: boolean;
+}
+
+export interface ServerStatusResult {
+  running: boolean;
+  status: 'RUNNING' | 'STOPPED';
+  message: string;
+  latencyMs?: number;
+  info?: any;
+}
+
+/**
+ * Universal HTTP request function that uses CapacitorHttp on native Android/iOS
+ * to bypass Android WebView cleartext HTTP and CORS restrictions, with browser fetch fallback.
+ */
+export async function universalHttp(
+  url: string,
+  options: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: any;
+    timeoutMs?: number;
+  } = {}
+): Promise<{ status: number; ok: boolean; data: any; headers: any }> {
+  const method = (options.method || 'GET').toUpperCase();
+  const timeoutMs = options.timeoutMs || 8000;
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+
+  // 1. On Native Android / iOS, route via native Capacitor HTTP client (OkHttp)
+  if (isNative && typeof CapacitorHttp !== 'undefined') {
+    try {
+      let parsedData = options.body;
+      if (typeof options.body === 'string') {
+        try {
+          parsedData = JSON.parse(options.body);
+        } catch (_) {
+          parsedData = options.body;
+        }
+      }
+
+      const nativeRes = await CapacitorHttp.request({
+        url,
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          ...(options.headers || {}),
+        },
+        data: parsedData,
+        connectTimeout: timeoutMs,
+        readTimeout: timeoutMs,
+      });
+
+      return {
+        status: nativeRes.status,
+        ok: nativeRes.status >= 200 && nativeRes.status < 300,
+        data: nativeRes.data,
+        headers: nativeRes.headers,
+      };
+    } catch (nativeErr: any) {
+      console.warn('Native CapacitorHttp attempt failed, trying browser fetch:', nativeErr);
+    }
+  }
+
+  // 2. Standard Web Browser fetch with AbortController timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(options.headers || {}),
+      },
+      body: options.body,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    let resData: any = null;
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      try {
+        resData = await res.json();
+      } catch (_) {
+        resData = null;
+      }
+    } else {
+      resData = await res.text();
+    }
+
+    return {
+      status: res.status,
+      ok: res.ok,
+      data: resData,
+      headers: res.headers,
+    };
+  } catch (webErr: any) {
+    clearTimeout(timeoutId);
+
+    // If fetch failed due to CORS or Cleartext error on mobile browser/webview, try CapacitorHttp fallback
+    if (typeof CapacitorHttp !== 'undefined') {
+      try {
+        const fallbackRes = await CapacitorHttp.request({
+          url,
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(options.headers || {}),
+          },
+          data: options.body && typeof options.body === 'string' ? JSON.parse(options.body) : options.body,
+          connectTimeout: timeoutMs,
+          readTimeout: timeoutMs,
+        });
+
+        return {
+          status: fallbackRes.status,
+          ok: fallbackRes.status >= 200 && fallbackRes.status < 300,
+          data: fallbackRes.data,
+          headers: fallbackRes.headers,
+        };
+      } catch (_) {
+        // Fall through to throw original web error
+      }
+    }
+
+    throw webErr;
+  }
 }
 
 /**
@@ -190,6 +321,63 @@ export function formatServerUrl(inputUrl: string): string {
 }
 
 /**
+ * Check Server Status (verifies /api/health responds with 200 OK and RUNNING status)
+ */
+export async function checkServerStatus(customUrl?: string): Promise<ServerStatusResult> {
+  const targetUrl = customUrl ? formatServerUrl(customUrl) : (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3000` : 'http://localhost:3000');
+  const url = `${targetUrl}/api/health`;
+  const startTime = Date.now();
+
+  try {
+    const res = await universalHttp(url, {
+      method: 'GET',
+      timeoutMs: 4000,
+    });
+    const latencyMs = Date.now() - startTime;
+
+    if (res.ok && res.data && (res.data.status === 'ok' || res.data.serverStatus === 'RUNNING')) {
+      return {
+        running: true,
+        status: 'RUNNING',
+        message: `Server Status: RUNNING (0.0.0.0:3000, ${latencyMs}ms)`,
+        latencyMs,
+        info: res.data,
+      };
+    }
+
+    return {
+      running: false,
+      status: 'STOPPED',
+      message: `Server Status: STOPPED (HTTP ${res.status}: ${JSON.stringify(res.data || 'Failed')})`,
+      latencyMs,
+    };
+  } catch (err: any) {
+    // Also try local relative /api/health if targetUrl was an external IP on the same origin
+    try {
+      const relRes = await universalHttp('/api/health', { method: 'GET', timeoutMs: 3000 });
+      if (relRes.ok && relRes.data && (relRes.data.status === 'ok' || relRes.data.serverStatus === 'RUNNING')) {
+        const latencyMs = Date.now() - startTime;
+        return {
+          running: true,
+          status: 'RUNNING',
+          message: `Server Status: RUNNING (0.0.0.0:3000, ${latencyMs}ms)`,
+          latencyMs,
+          info: relRes.data,
+        };
+      }
+    } catch (_) {
+      // ignore
+    }
+
+    return {
+      running: false,
+      status: 'STOPPED',
+      message: `Server Status: STOPPED (${err.message || 'Port 3000 သို့ ချိတ်ဆက်၍မရပါ'})`,
+    };
+  }
+}
+
+/**
  * Test Connection to Master Server using 5-second timeout and health check endpoint
  */
 export async function testServerConnection(targetUrl?: string): Promise<{
@@ -203,23 +391,16 @@ export async function testServerConnection(targetUrl?: string): Promise<{
   const startTime = Date.now();
 
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
-
-    const res = await fetch(`${baseUrl}/api/health`, {
+    const res = await universalHttp(`${baseUrl}/api/health`, {
       method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-      signal: controller.signal,
+      timeoutMs: 5000,
     });
-    clearTimeout(timeoutId);
 
     const latencyMs = Date.now() - startTime;
 
     if (res.ok) {
-      const data = await res.json();
-      if (data && data.status === 'ok') {
+      const data = res.data;
+      if (data && (data.status === 'ok' || data.serverStatus === 'RUNNING')) {
         notifyStatus({
           isClient: config.mode === 'client',
           isConnected: true,
@@ -236,7 +417,7 @@ export async function testServerConnection(targetUrl?: string): Promise<{
         return { success: false, message: errMsg };
       }
     } else {
-      const errMsg = `Server HTTP Error ${res.status}: ${res.statusText || 'Host/Port သို့ ချိတ်ဆက်၍မရပါ'}`;
+      const errMsg = `Server HTTP Error ${res.status}: Host/Port သို့ ချိတ်ဆက်၍မရပါ`;
       notifyStatus({
         isClient: config.mode === 'client',
         isConnected: false,
@@ -250,7 +431,7 @@ export async function testServerConnection(targetUrl?: string): Promise<{
     if (err.name === 'AbortError') {
       errMsg = 'Connection Timeout (5s): Master Server ထံမှ ၅ စက္ကန့်အတွင်း တုံ့ပြန်မှု မရရှိပါ (Server Mode ဖွင့်ထားခြင်းနှင့် တူညီသော Wi-Fi ဟုတ်/မဟုတ် စစ်ဆေးပါ)';
     } else if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
-      errMsg = `ချိတ်ဆက်၍ မရပါ (Failed to fetch): ${baseUrl} သို့ မရောက်နိုင်ပါ။ Master Server IP လိပ်စာ၊ Port 3000 နှင့် Local Wi-Fi ကွန်ရက်ကို စစ်ဆေးပါ`;
+      errMsg = `ချိတ်ဆက်၍ မရပါ (Failed to fetch): ${baseUrl} သို့ မရောက်နိုင်ပါ။ Master Server IP လိပ်စာ၊ Port 3000 (0.0.0.0) နှင့် Local Wi-Fi ကွန်ရက်ကို စစ်ဆေးပါ`;
     } else {
       errMsg = `ချိတ်ဆက်၍ မရပါ: ${err.message || 'Master Server IP နှင့် Port 3000 ကို စစ်ဆေးပါ'}`;
     }
@@ -275,12 +456,12 @@ export async function testServerConnection(targetUrl?: string): Promise<{
 export async function fetchServerNetworkInfo(): Promise<DetailedNetworkInfo | null> {
   let serverData: any = null;
   try {
-    const res = await fetch('/api/network-info', {
+    const res = await universalHttp('/api/network-info', {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      timeoutMs: 3000,
     });
-    if (res.ok) {
-      serverData = await res.json();
+    if (res.ok && res.data) {
+      serverData = res.data;
     }
   } catch (e) {
     // ignore
@@ -355,36 +536,32 @@ export async function fetchServerNetworkInfo(): Promise<DetailedNetworkInfo | nu
  */
 async function clientApiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: {
+    method?: string;
+    body?: any;
+    headers?: Record<string, string>;
+  } = {}
 ): Promise<T> {
   const config = getNetworkConfig();
   const baseUrl = formatServerUrl(config.masterServerIp);
   const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-
   try {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(options.headers || {}),
-      },
-      signal: controller.signal,
+    const res = await universalHttp(url, {
+      method: options.method || 'GET',
+      headers: options.headers,
+      body: options.body,
+      timeoutMs: 10000,
     });
-    clearTimeout(timeoutId);
 
     if (!res.ok) {
-      throw new Error(`Master Server HTTP ${res.status}: ${res.statusText}`);
+      const errMsg = typeof res.data === 'string' ? res.data : (res.data?.error || res.data?.message || `HTTP ${res.status}`);
+      throw new Error(`Master Server ${errMsg}`);
     }
 
-    const data = await res.json();
     notifyStatus({ isClient: true, isConnected: true, mode: 'client' });
-    return data as T;
+    return res.data as T;
   } catch (err: any) {
-    clearTimeout(timeoutId);
     const errorMsg = err.name === 'AbortError'
       ? 'Master Server Request Timeout (Wi-Fi ပြတ်တောက်မှု ရှိနိုင်သည်)'
       : (err.message || 'Master Server သို့ ချိတ်ဆက်၍ မရပါ');

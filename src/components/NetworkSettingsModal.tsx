@@ -14,6 +14,8 @@ import {
   Shield,
   HelpCircle,
   Laptop,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { NetworkConfig, NetworkMode } from '../types';
 import {
@@ -22,6 +24,8 @@ import {
   testServerConnection,
   fetchServerNetworkInfo,
   formatServerUrl,
+  checkServerStatus,
+  ServerStatusResult,
 } from '../services/dataService';
 
 interface NetworkSettingsModalProps {
@@ -48,6 +52,14 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
     hostname?: string;
   } | null>(null);
 
+  // Server Status State (RUNNING / STOPPED)
+  const [serverStatusState, setServerStatusState] = useState<ServerStatusResult>({
+    running: true,
+    status: 'RUNNING',
+    message: 'Server Status: RUNNING (0.0.0.0:3000)',
+  });
+  const [isCheckingServer, setIsCheckingServer] = useState<boolean>(false);
+
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
@@ -57,13 +69,31 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
 
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
-  // Fetch local server IPs on mount
-  useEffect(() => {
-    fetchServerNetworkInfo().then((info) => {
+  const handleRefreshServerStatus = async () => {
+    setIsCheckingServer(true);
+    try {
+      const [info, statusRes] = await Promise.all([
+        fetchServerNetworkInfo(),
+        checkServerStatus(),
+      ]);
       if (info) {
         setServerInfo(info);
       }
-    });
+      setServerStatusState(statusRes);
+    } catch (e: any) {
+      setServerStatusState({
+        running: false,
+        status: 'STOPPED',
+        message: `Server Status: STOPPED (${e.message || 'Cannot reach port 3000'})`,
+      });
+    } finally {
+      setIsCheckingServer(false);
+    }
+  };
+
+  // Fetch local server IPs & check Server status on mount
+  useEffect(() => {
+    handleRefreshServerStatus();
   }, []);
 
   const handleCopy = (text: string) => {
@@ -193,17 +223,68 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
           {/* ================= SERVER MODE PANEL ================= */}
           {mode === 'server' && (
             <div className="space-y-3.5 animate-in fade-in duration-200">
+              {/* SERVER STATUS INDICATOR BANNER */}
+              <div
+                className={`p-3.5 sm:p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs ${
+                  serverStatusState.running
+                    ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/80 text-emerald-900 dark:text-emerald-100'
+                    : 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/80 text-rose-900 dark:text-rose-100'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {serverStatusState.running ? (
+                    <span className="relative flex h-3.5 w-3.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500"></span>
+                    </span>
+                  ) : (
+                    <span className="relative flex h-3.5 w-3.5 shrink-0">
+                      <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+                    </span>
+                  )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-sm font-black tracking-wide ${
+                          serverStatusState.running
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400'
+                        }`}
+                      >
+                        {serverStatusState.status === 'RUNNING' ? 'Server Status: RUNNING' : 'Server Status: STOPPED'}
+                      </span>
+                      {serverStatusState.running && (
+                        <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300 dark:border-emerald-700">
+                          0.0.0.0:3000
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] opacity-80 mt-0.5">
+                      {serverStatusState.running
+                        ? `Master HTTP Server is actively listening on all interfaces (Port 3000)`
+                        : serverStatusState.message}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRefreshServerStatus}
+                  disabled={isCheckingServer}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer shadow-2xs shrink-0"
+                  title="Check Server Status"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingServer ? 'animate-spin text-indigo-600' : ''}`} />
+                  <span>{isCheckingServer ? 'Checking...' : 'Check Server'}</span>
+                </button>
+              </div>
+
               <div className="p-4 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-2xl border border-indigo-100 dark:border-indigo-900/50 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-3 w-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    </span>
-                    <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                      Master Server အသက်ဝင်နေပါသည် (0.0.0.0:3000)
-                    </span>
-                  </div>
+                  <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    ပင်မ Master စက်၏ Local IP Address
+                  </span>
                   <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full font-bold">
                     📡 Wi-Fi Ready
                   </span>
@@ -211,8 +292,8 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
 
                 <div>
                   <div className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 mb-1.5 flex items-center justify-between">
-                    <span>ဒီစက်၏ Wi-Fi Local IP (Client စက်များထံ ထည့်ရန်):</span>
-                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">Port 3000</span>
+                    <span>Client ဖုန်းများထံ ထည့်သွင်းရမည့် လိပ်စာ:</span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold">Port 3000</span>
                   </div>
 
                   <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-xl border border-indigo-200 dark:border-slate-700 shadow-xs">
@@ -245,7 +326,7 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
                 {/* Available Network Interfaces chips */}
                 {serverInfo && serverInfo.ipList.length > 0 && (
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-indigo-100 dark:border-indigo-900/30">
-                    <span className="font-semibold block mb-1">ရရှိနိုင်သော ကွန်ရက်လိပ်စာများ: </span>
+                    <span className="font-semibold block mb-1">ရရှိနိုင်သော ကွန်ရက်လိပ်စာများ (Available IPs): </span>
                     <div className="flex flex-wrap gap-1.5">
                       {serverInfo.ipList.map((ip) => {
                         const url = `http://${ip}:${serverInfo.port || 3000}`;
@@ -284,8 +365,9 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
                   <span>Master Server ညွှန်ကြားချက်များ</span>
                 </div>
                 <ul className="list-disc list-inside space-y-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  <li>Express Server သည် host <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded text-slate-800 dark:text-slate-200">0.0.0.0:3000</code> တွင် အလုပ်လုပ်နေပြီး တူညီသော Wi-Fi ကွန်ရက်ရှိ စက်အားလုံး ချိတ်ဆက်နိုင်ပါသည်။</li>
-                  <li>အခြား ဝန်ထမ်းဖုန်း/တက်ဘလက်များမှ <strong>Client Mode</strong> တွင် အထက်ပါ IP Address (ဥပမာ: <code className="font-mono bg-indigo-50 dark:bg-indigo-950 px-1 rounded text-indigo-600 dark:text-indigo-300">{primaryDisplayUrl}</code>) ကို ထည့်သွင်းချိတ်ဆက်ရုံဖြင့် စာရင်းများ တပြိုင်တည်း ရေး/ဖတ် နိုင်ပါမည်။</li>
+                  <li>Express Server သည် host <code className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded text-slate-800 dark:text-slate-200 font-bold">0.0.0.0:3000</code> တွင် အလုပ်လုပ်နေပြီး တူညီသော Wi-Fi ကွန်ရက်ရှိ စက်အားလုံး ချိတ်ဆက်နိုင်ပါသည်။</li>
+                  <li>အခြား ဝန်ထမ်းဖုန်း/တက်ဘလက်များမှ <strong>Client Mode</strong> တွင် အထက်ပါ IP Address (ဥပမာ: <code className="font-mono bg-indigo-50 dark:bg-indigo-950 px-1 rounded text-indigo-600 dark:text-indigo-300 font-bold">{primaryDisplayUrl}</code>) ကို ထည့်သွင်းချိတ်ဆက်ရုံဖြင့် စာရင်းများ တပြိုင်တည်း ရေး/ဖတ် နိုင်ပါမည်။</li>
+                  <li>Android ဖုန်းများတွင် Cleartext HTTP / CORS ကန့်သတ်ချက်များ မရှိစေရန် Native Capacitor HTTP Bridge ဖြင့် အပြည့်အဝ ပံ့ပိုးထားပါသည်။</li>
                 </ul>
               </div>
             </div>
