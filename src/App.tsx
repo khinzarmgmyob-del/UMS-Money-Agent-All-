@@ -1805,6 +1805,7 @@ export default function App() {
       {showNetworkModal && (
         <NetworkSettingsModal
           onClose={() => setShowNetworkModal(false)}
+          onShowToast={showToast}
           onConfigChanged={async (newCfg) => {
             setNetworkConfig(newCfg);
             setIsDBLoading(true);

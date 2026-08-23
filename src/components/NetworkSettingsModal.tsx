@@ -27,11 +27,13 @@ import {
 interface NetworkSettingsModalProps {
   onClose: () => void;
   onConfigChanged: (config: NetworkConfig) => void;
+  onShowToast?: (message: string, type?: 'success' | 'error' | 'info') => void;
 }
 
 export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
   onClose,
   onConfigChanged,
+  onShowToast,
 }) => {
   const [config, setConfig] = useState<NetworkConfig>(() => getNetworkConfig());
   const [mode, setMode] = useState<NetworkMode>(config.mode);
@@ -77,11 +79,18 @@ export const NetworkSettingsModal: React.FC<NetworkSettingsModalProps> = ({
     try {
       const res = await testServerConnection(masterIp);
       setTestResult(res);
+      if (res.success) {
+        onShowToast?.(res.message, 'success');
+      } else {
+        onShowToast?.(res.message, 'error');
+      }
     } catch (e: any) {
+      const msg = e.message || 'ချိတ်ဆက်မှု မအောင်မြင်ပါ';
       setTestResult({
         success: false,
-        message: e.message || 'ချိတ်ဆက်မှု မအောင်မြင်ပါ',
+        message: msg,
       });
+      onShowToast?.(msg, 'error');
     } finally {
       setIsTesting(false);
     }

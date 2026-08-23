@@ -190,7 +190,7 @@ export function formatServerUrl(inputUrl: string): string {
 }
 
 /**
- * Test Connection to Master Server
+ * Test Connection to Master Server using 5-second timeout and health check endpoint
  */
 export async function testServerConnection(targetUrl?: string): Promise<{
   success: boolean;
@@ -204,11 +204,13 @@ export async function testServerConnection(targetUrl?: string): Promise<{
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5-second timeout
 
     const res = await fetch(`${baseUrl}/api/health`, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+      },
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
@@ -217,19 +219,24 @@ export async function testServerConnection(targetUrl?: string): Promise<{
 
     if (res.ok) {
       const data = await res.json();
-      notifyStatus({
-        isClient: config.mode === 'client',
-        isConnected: true,
-        mode: config.mode,
-      });
-      return {
-        success: true,
-        message: `Master Server သို့ အောင်မြင်စွာ ချိတ်ဆက်မိပါသည် (${latencyMs}ms)`,
-        latencyMs,
-        info: data,
-      };
+      if (data && data.status === 'ok') {
+        notifyStatus({
+          isClient: config.mode === 'client',
+          isConnected: true,
+          mode: config.mode,
+        });
+        return {
+          success: true,
+          message: `Master Server ချိတ်ဆက်မှု အောင်မြင်ပါသည် (status: ok, ${latencyMs}ms)`,
+          latencyMs,
+          info: data,
+        };
+      } else {
+        const errMsg = `Master Server မှ မမျှော်လင့်ထားသော တုံ့ပြန်မှု ရရှိပါသည်: status != 'ok'`;
+        return { success: false, message: errMsg };
+      }
     } else {
-      const errMsg = `Server HTTP Error: ${res.status} ${res.statusText}`;
+      const errMsg = `Server HTTP Error ${res.status}: ${res.statusText || 'Host/Port သို့ ချိတ်ဆက်၍မရပါ'}`;
       notifyStatus({
         isClient: config.mode === 'client',
         isConnected: false,
@@ -239,9 +246,14 @@ export async function testServerConnection(targetUrl?: string): Promise<{
       return { success: false, message: errMsg };
     }
   } catch (err: any) {
-    const errMsg = err.name === 'AbortError' 
-      ? 'Connection Timeout: Master Server ထံမှ တုံ့ပြန်မှု မရရှိပါ (Wi-Fi ချိတ်ဆက်မှု စစ်ဆေးပါ)'
-      : `ချိတ်ဆက်၍ မရပါ: ${err.message || 'Master Server IP နှင့် Wi-Fi ကို စစ်ဆေးပါ'}`;
+    let errMsg = '';
+    if (err.name === 'AbortError') {
+      errMsg = 'Connection Timeout (5s): Master Server ထံမှ ၅ စက္ကန့်အတွင်း တုံ့ပြန်မှု မရရှိပါ (Server Mode ဖွင့်ထားခြင်းနှင့် တူညီသော Wi-Fi ဟုတ်/မဟုတ် စစ်ဆေးပါ)';
+    } else if (err.message && err.message.toLowerCase().includes('failed to fetch')) {
+      errMsg = `ချိတ်ဆက်၍ မရပါ (Failed to fetch): ${baseUrl} သို့ မရောက်နိုင်ပါ။ Master Server IP လိပ်စာ၊ Port 3000 နှင့် Local Wi-Fi ကွန်ရက်ကို စစ်ဆေးပါ`;
+    } else {
+      errMsg = `ချိတ်ဆက်၍ မရပါ: ${err.message || 'Master Server IP နှင့် Port 3000 ကို စစ်ဆေးပါ'}`;
+    }
 
     notifyStatus({
       isClient: config.mode === 'client',
