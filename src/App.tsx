@@ -1539,15 +1539,6 @@ export default function App() {
                 <Archive className="w-4 h-4" />
                 🗄️ စာရင်းဟောင်း Archive &amp; Compact
               </button>
-
-              <button
-                onClick={() => setShowNetworkModal(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-700 hover:to-cyan-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-600/20 cursor-pointer"
-                title="တူညီသော Wi-Fi ကွန်ရက်တွင် Master Server သို့မဟုတ် Client Mode ချိတ်ဆက်မှု စီမံမည်"
-              >
-                <Wifi className="w-4 h-4" />
-                📡 Wi-Fi ကွန်ရက် (Master / Client)
-              </button>
             </div>
           </div>
 
