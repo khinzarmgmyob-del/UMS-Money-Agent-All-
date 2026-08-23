@@ -31,7 +31,13 @@ jobs:
       - name: Build Web Code
         run: npm run build
 
-      - name: Sync Capacitor using npx yes
+      - name: Fix WebDir for Capacitor (if using dist)
+        run: |
+          if [ -d "dist" ] && [ ! -d "www" ]; then
+            cp -r dist www
+          fi
+
+      - name: Sync Capacitor
         run: npx --yes @capacitor/cli sync android
 
       - name: Build Android Debug APK
